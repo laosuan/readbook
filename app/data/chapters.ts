@@ -26,7 +26,6 @@ function processJsonData(): BilingualContent[] {
 // 通过JSON数据构建包法利夫人的全部章节内容
 function createMadameBovaryChapters(): Chapter[] {
   const allContent = processJsonData();
-  const contentLength = allContent.length;
   
   // 定义各部分章节数
   const partStructure = {
@@ -35,24 +34,103 @@ function createMadameBovaryChapters(): Chapter[] {
     part3: 11  // 第三部分有11章
   };
   
-  const totalChapters = partStructure.part1 + partStructure.part2 + partStructure.part3;
+  // 章节标记在JSON中的位置
+  const chapterMarkers = {
+    partI: "Part I",
+    partII: "Part II",
+    partIII: "Part III",
+    chapterOne: "Chapter One",
+    chapterTwo: "Chapter Two",
+    chapterThree: "Chapter Three",
+    chapterFour: "Chapter Four",
+    chapterFive: "Chapter Five",
+    chapterSix: "Chapter Six",
+    chapterSeven: "Chapter Seven",
+    chapterEight: "Chapter Eight",
+    chapterNine: "Chapter Nine",
+    chapterTen: "Chapter Ten",
+    chapterEleven: "Chapter Eleven",
+    chapterTwelve: "Chapter Twelve",
+    chapterThirteen: "Chapter Thirteen",
+    chapterFourteen: "Chapter Fourteen",
+    chapterFifteen: "Chapter Fifteen"
+  };
   
-  // 计算每章大约包含的段落数
-  const paragraphsPerChapter = Math.ceil(contentLength / totalChapters);
+  // 查找章节标记在内容中的索引
+  function findMarkerIndex(marker: string): number {
+    return allContent.findIndex(item => item.english.includes(marker));
+  }
   
+  // 查找所有章节标记的索引
+  const markerIndices = {
+    partI: findMarkerIndex(chapterMarkers.partI),
+    partII: findMarkerIndex(chapterMarkers.partII),
+    partIII: findMarkerIndex(chapterMarkers.partIII),
+    // 第一部分章节
+    part1Ch1: findMarkerIndex(chapterMarkers.chapterOne),
+    part1Ch2: findMarkerIndex(chapterMarkers.chapterTwo),
+    part1Ch3: findMarkerIndex(chapterMarkers.chapterThree),
+    part1Ch4: findMarkerIndex(chapterMarkers.chapterFour),
+    part1Ch5: findMarkerIndex(chapterMarkers.chapterFive),
+    part1Ch6: findMarkerIndex(chapterMarkers.chapterSix),
+    part1Ch7: findMarkerIndex(chapterMarkers.chapterSeven),
+    part1Ch8: findMarkerIndex(chapterMarkers.chapterEight),
+    part1Ch9: findMarkerIndex(chapterMarkers.chapterNine),
+    // 第二部分章节 - 由于JSON中没有明确标记，我们将使用第二部分的起始位置
+    part2Start: findMarkerIndex(chapterMarkers.partII),
+    // 第三部分章节 - 由于JSON中没有明确标记，我们将使用第三部分的起始位置
+    part3Start: findMarkerIndex(chapterMarkers.partIII)
+  };
+  
+  // 创建章节
   const chapters: Chapter[] = [];
-  let contentIndex = 0;
   
   // 创建第一部分的章节
   for (let i = 1; i <= partStructure.part1; i++) {
-    const startIndex = contentIndex;
-    const endIndex = Math.min(contentIndex + paragraphsPerChapter, contentLength);
+    let startIndex, endIndex;
     
+    // 确定章节的起始和结束索引
+    if (i === 1) {
+      startIndex = markerIndices.part1Ch1;
+      endIndex = markerIndices.part1Ch2;
+    } else if (i === 2) {
+      startIndex = markerIndices.part1Ch2;
+      endIndex = markerIndices.part1Ch3;
+    } else if (i === 3) {
+      startIndex = markerIndices.part1Ch3;
+      endIndex = markerIndices.part1Ch4;
+    } else if (i === 4) {
+      startIndex = markerIndices.part1Ch4;
+      endIndex = markerIndices.part1Ch5;
+    } else if (i === 5) {
+      startIndex = markerIndices.part1Ch5;
+      endIndex = markerIndices.part1Ch6;
+    } else if (i === 6) {
+      startIndex = markerIndices.part1Ch6;
+      endIndex = markerIndices.part1Ch7;
+    } else if (i === 7) {
+      startIndex = markerIndices.part1Ch7;
+      endIndex = markerIndices.part1Ch8;
+    } else if (i === 8) {
+      startIndex = markerIndices.part1Ch8;
+      endIndex = markerIndices.part1Ch9;
+    } else if (i === 9) {
+      startIndex = markerIndices.part1Ch9;
+      endIndex = markerIndices.partII;
+    }
+    
+    // 如果找不到章节标记，则跳过
+    if (startIndex === -1 || endIndex === -1) {
+      continue;
+    }
+    
+    // 创建章节内容
     const chapterContent = allContent.slice(startIndex, endIndex).map((item, idx) => ({
       ...item,
       id: `7-1-${i}-${idx + 1}`
     }));
     
+    // 添加章节
     chapters.push({
       id: `7-1-${i}`,
       bookId: '7',
@@ -60,16 +138,20 @@ function createMadameBovaryChapters(): Chapter[] {
       title: `PART I - Chapter ${i}`,
       content: chapterContent
     });
-    
-    contentIndex = endIndex;
   }
   
-  // 创建第二部分的章节
+  // 为第二部分和第三部分创建章节
+  // 由于JSON中没有明确的章节标记，我们将平均分配内容
+  
+  // 第二部分
+  const part2Content = allContent.slice(markerIndices.partII, markerIndices.partIII);
+  const part2ChapterSize = Math.ceil(part2Content.length / partStructure.part2);
+  
   for (let i = 1; i <= partStructure.part2; i++) {
-    const startIndex = contentIndex;
-    const endIndex = Math.min(contentIndex + paragraphsPerChapter, contentLength);
+    const startIndex = (i - 1) * part2ChapterSize;
+    const endIndex = Math.min(i * part2ChapterSize, part2Content.length);
     
-    const chapterContent = allContent.slice(startIndex, endIndex).map((item, idx) => ({
+    const chapterContent = part2Content.slice(startIndex, endIndex).map((item, idx) => ({
       ...item,
       id: `7-2-${i}-${idx + 1}`
     }));
@@ -81,16 +163,17 @@ function createMadameBovaryChapters(): Chapter[] {
       title: `PART II - Chapter ${i}`,
       content: chapterContent
     });
-    
-    contentIndex = endIndex;
   }
   
-  // 创建第三部分的章节
+  // 第三部分
+  const part3Content = allContent.slice(markerIndices.partIII);
+  const part3ChapterSize = Math.ceil(part3Content.length / partStructure.part3);
+  
   for (let i = 1; i <= partStructure.part3; i++) {
-    const startIndex = contentIndex;
-    const endIndex = Math.min(contentIndex + paragraphsPerChapter, contentLength);
+    const startIndex = (i - 1) * part3ChapterSize;
+    const endIndex = Math.min(i * part3ChapterSize, part3Content.length);
     
-    const chapterContent = allContent.slice(startIndex, endIndex).map((item, idx) => ({
+    const chapterContent = part3Content.slice(startIndex, endIndex).map((item, idx) => ({
       ...item,
       id: `7-3-${i}-${idx + 1}`
     }));
@@ -102,8 +185,6 @@ function createMadameBovaryChapters(): Chapter[] {
       title: `PART III - Chapter ${i}`,
       content: chapterContent
     });
-    
-    contentIndex = endIndex;
   }
   
   return chapters;
