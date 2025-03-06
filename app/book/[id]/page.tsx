@@ -1,45 +1,42 @@
-'use client';
-
-import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { books } from '../../data/books';
 import { chapters } from '../../data/chapters';
-import { Book, Chapter } from '../../types';
 import BookCoverPlaceholder from '../../components/BookCoverPlaceholder';
-import LoadingSpinner from '../../components/LoadingSpinner';
+import { Metadata } from 'next';
 
-export default function BookDetail({ params }: { params: { id: string } }) {
-  const [book, setBook] = useState<Book | null>(null);
-  const [bookChapters, setBookChapters] = useState<Chapter[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [notFound, setNotFound] = useState(false);
 
-  useEffect(() => {
-    // Simulate loading data
-    const timer = setTimeout(() => {
-      // Find the book by ID
-      const foundBook = books.find((b) => b.id === params.id);
-      if (foundBook) {
-        setBook(foundBook);
-        
-        // Find chapters for this book
-        const foundChapters = chapters.filter((c) => c.bookId === params.id);
-        setBookChapters(foundChapters);
-      } else {
-        setNotFound(true);
-      }
-      setIsLoading(false);
-    }, 500);
-
-    return () => clearTimeout(timer);
-  }, [params.id]);
-
-  if (isLoading) {
-    return <LoadingSpinner />;
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>
+}): Promise<Metadata> {
+  const { id } = await params;
+  const book = books.find((b) => b.id === id);
+  
+  if (!book) {
+    return {
+      title: '未找到书籍 | 阅词名著',
+    };
   }
+  
+  return {
+    title: `${book.title} | 阅词名著`,
+    description: book.description.substring(0, 160),
+  };
+}
 
-  if (notFound || !book) {
+// 将页面组件转换为异步函数
+export default async function BookDetail({
+  params,
+}: {
+  params: Promise<{ id: string }>
+}) {
+  const { id } = await params;
+  const book = books.find((b) => b.id === id);
+  const bookChapters = chapters.filter((c) => c.bookId === id);
+  
+  if (!book) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="text-center">
@@ -60,7 +57,6 @@ export default function BookDetail({ params }: { params: { id: string } }) {
     );
   }
 
-  // Check if the cover image is a valid URL or path
   const hasValidCover = book.coverImage && (
     book.coverImage.startsWith('http') || 
     book.coverImage.startsWith('/images/')
@@ -70,7 +66,6 @@ export default function BookDetail({ params }: { params: { id: string } }) {
     <div className="bg-card-light dark:bg-card-dark py-12">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="lg:grid lg:grid-cols-3 lg:gap-8">
-          {/* Book Cover */}
           <div className="flex justify-center lg:justify-end lg:col-span-1">
             <div className="w-64 h-96 overflow-hidden rounded-lg shadow-lg">
               {hasValidCover ? (
@@ -92,7 +87,6 @@ export default function BookDetail({ params }: { params: { id: string } }) {
             </div>
           </div>
 
-          {/* Book Details */}
           <div className="mt-8 lg:mt-0 lg:col-span-2">
             <div className="bg-card-light dark:bg-card-dark rounded-lg shadow-md overflow-hidden border border-secondary-100 dark:border-secondary-800">
               <div className="px-6 py-5">
@@ -150,7 +144,6 @@ export default function BookDetail({ params }: { params: { id: string } }) {
           </div>
         </div>
 
-        {/* Chapters List */}
         <div className="mt-12">
           <h2 className="text-2xl font-bold text-secondary-900 dark:text-secondary-100 mb-6">章节列表</h2>
           <div className="bg-card-light dark:bg-card-dark rounded-lg shadow-md overflow-hidden border border-secondary-100 dark:border-secondary-800">
@@ -165,10 +158,8 @@ export default function BookDetail({ params }: { params: { id: string } }) {
                       <div className="flex items-center justify-between">
                         <p className="text-lg font-medium text-secondary-900 dark:text-secondary-100">
                           {book.id === '7' ? (
-                            // 包法利夫人的章节显示格式
                             chapter.title
                           ) : (
-                            // 其他书籍的章节显示格式
                             `第 ${chapter.chapterNumber} 章: ${chapter.title}`
                           )}
                         </p>

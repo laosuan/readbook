@@ -8,7 +8,7 @@ import { Book, Chapter } from '../../../types';
 import BilingualReader from '../../../components/BilingualReader';
 import LoadingSpinner from '../../../components/LoadingSpinner';
 
-export default function ReadPage({ params }: { params: { bookId: string; chapterId: string } }) {
+export default function ReadPage({ params }: { params: Promise<{ bookId: string; chapterId: string }> }) {
   const [book, setBook] = useState<Book | null>(null);
   const [chapter, setChapter] = useState<Chapter | null>(null);
   const [prevChapter, setPrevChapter] = useState<string | null>(null);
@@ -21,46 +21,59 @@ export default function ReadPage({ params }: { params: { bookId: string; chapter
     setIsLoading(true);
     setNotFound(false);
     
-    // Simulate loading data
-    const timer = setTimeout(() => {
-      // Find the book by ID
-      const foundBook = books.find((b) => b.id === params.bookId);
-      if (foundBook) {
-        setBook(foundBook);
+    // Handle Promise-based params
+    const loadData = async () => {
+      try {
+        const paramsData = await params;
+        const { bookId, chapterId } = paramsData;
         
-        // Find the chapter by number
-        const chapterNumber = parseInt(params.chapterId, 10);
-        const foundChapter = chapters.find(
-          (c) => c.bookId === params.bookId && c.chapterNumber === chapterNumber
-        );
+        // Find the book by ID
+        const foundBook = books.find((b) => b.id === bookId);
+        if (foundBook) {
+          setBook(foundBook);
+          
+          // Find the chapter by number
+          const chapterNumber = parseInt(chapterId, 10);
+          const foundChapter = chapters.find(
+            (c) => c.bookId === bookId && c.chapterNumber === chapterNumber
+          );
         
-        if (foundChapter) {
-          setChapter(foundChapter);
-          
-          // Set previous and next chapter links
-          if (chapterNumber > 1) {
-            setPrevChapter((chapterNumber - 1).toString());
+          if (foundChapter) {
+            setChapter(foundChapter);
+            
+            // Set previous and next chapter links
+            if (chapterNumber > 1) {
+              setPrevChapter((chapterNumber - 1).toString());
+            } else {
+              setPrevChapter(null);
+            }
+            
+            if (chapterNumber < foundBook.totalChapters) {
+              setNextChapter((chapterNumber + 1).toString());
+            } else {
+              setNextChapter(null);
+            }
           } else {
-            setPrevChapter(null);
-          }
-          
-          if (chapterNumber < foundBook.totalChapters) {
-            setNextChapter((chapterNumber + 1).toString());
-          } else {
-            setNextChapter(null);
+            setNotFound(true);
           }
         } else {
           setNotFound(true);
         }
-      } else {
+      } catch (error) {
+        console.error('Error loading params:', error);
         setNotFound(true);
+      } finally {
+        setIsLoading(false);
       }
-      
-      setIsLoading(false);
+    };
+    
+    // Simulate loading data with a slight delay
+    const timer = setTimeout(() => {
+      loadData();
     }, 500);
     
     return () => clearTimeout(timer);
-  }, [params.bookId, params.chapterId]);
+  }, [params]); // Only depend on the params Promise itself
   
   if (isLoading) {
     return <LoadingSpinner />;
