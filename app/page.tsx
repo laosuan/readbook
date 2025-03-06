@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import Image from 'next/image';
 import { books } from './data/books';
 import BookCard from './components/BookCard';
 import HeroImage from './components/HeroImage';
@@ -198,7 +197,7 @@ export default function Home() {
                   </div>
                 </div>
                 <p className="text-secondary-700 dark:text-secondary-300 italic">
-                  "阅词名著帮助我更好地理解英语原著，中英对照的阅读方式让我能够更快地掌握英语表达方式，提高了我的阅读能力。现在我可以更自信地阅读英语原著了！"
+                  &ldquo;阅词名著帮助我更好地理解英语原著，中英对照的阅读方式让我能够更快地掌握英语表达方式，提高了我的阅读能力。现在我可以更自信地阅读英语原著了！&rdquo;
                 </p>
               </div>
               
@@ -220,7 +219,7 @@ export default function Home() {
                   </div>
                 </div>
                 <p className="text-secondary-700 dark:text-secondary-300 italic">
-                  "作为一名英语专业的学生，阅词名著为我提供了丰富的阅读资源。界面简洁美观，功能实用，是我学习英语文学的得力助手。"
+                  &ldquo;作为一名英语专业的学生，阅词名著为我提供了丰富的阅读资源。界面简洁美观，功能实用，是我学习英语文学的得力助手。&rdquo;
                 </p>
               </div>
             </div>

@@ -3,33 +3,34 @@
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { useTheme } from './ThemeProvider';
-import Image from 'next/image';
+
+// 添加Theme类型定义
+type Theme = 'light' | 'dark' | 'system';
 
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const [currentTheme, setCurrentTheme] = useState<'light' | 'dark' | 'system'>('system');
+  const [fallbackTheme, setFallbackTheme] = useState<Theme>('system');
   
-  // Try to use the theme context, but handle the case when it's not available
-  let themeContext;
-  try {
-    themeContext = useTheme();
-  } catch (error) {
-    // Theme context not available, we'll use our local state instead
-    console.log('Theme context not available, using local state');
-  }
-
-  // Use the theme context if available, otherwise use local state
-  const theme = themeContext?.theme || currentTheme;
-  const setTheme = themeContext?.setTheme || setCurrentTheme;
+  // 获取主题上下文，如果上下文不可用则使用本地状态
+  const themeContext = useTheme();
+  
+  // 确定要使用的主题和设置主题的函数
+  const theme = themeContext?.theme || fallbackTheme;
+  const setTheme = (newTheme: Theme) => {
+    if (themeContext?.setTheme) {
+      themeContext.setTheme(newTheme);
+    } else {
+      setFallbackTheme(newTheme);
+    }
+  };
 
   // Handle mounting to prevent hydration issues
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  // Handle scroll events to change header appearance
   useEffect(() => {
     const handleScroll = () => {
       if (window.scrollY > 10) {
@@ -75,7 +76,6 @@ export default function Header() {
     }
   };
 
-  // If not mounted yet, render a simplified header to prevent hydration issues
   if (!mounted) {
     return (
       <header className="fixed w-full top-0 z-50 bg-card-light/80 dark:bg-card-dark/80 backdrop-blur-lg">
@@ -137,7 +137,6 @@ export default function Header() {
             </Link>
           </div>
           
-          {/* Mobile menu button */}
           <div className="flex items-center md:hidden">
             <button
               onClick={toggleTheme}
@@ -152,7 +151,6 @@ export default function Header() {
               aria-expanded={isMenuOpen ? 'true' : 'false'}
             >
               <span className="sr-only">打开主菜单</span>
-              {/* Icon when menu is closed */}
               <svg
                 className={`${isMenuOpen ? 'hidden' : 'block'} h-6 w-6`}
                 xmlns="http://www.w3.org/2000/svg"
@@ -168,7 +166,6 @@ export default function Header() {
                   d="M4 6h16M4 12h16M4 18h16"
                 />
               </svg>
-              {/* Icon when menu is open */}
               <svg
                 className={`${isMenuOpen ? 'block' : 'hidden'} h-6 w-6`}
                 xmlns="http://www.w3.org/2000/svg"
@@ -189,7 +186,6 @@ export default function Header() {
         </div>
       </div>
 
-      {/* Mobile menu, show/hide based on menu state */}
       <div className={`${isMenuOpen ? 'block' : 'hidden'} md:hidden`}>
         <div className="pt-2 pb-3 space-y-1 bg-card-light dark:bg-card-dark shadow-lg rounded-b-lg">
           {[

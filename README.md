@@ -52,6 +52,55 @@ npm run dev
 /public - 静态资源
 ```
 
+## 部署到Vercel
+
+### 方法一：使用Vercel CLI
+
+1. 安装Vercel CLI
+```bash
+npm install -g vercel
+```
+
+2. 登录到Vercel
+```bash
+vercel login
+```
+
+3. 部署项目
+```bash
+vercel
+```
+按照提示进行操作，完成部署配置。
+
+4. 如需生产环境部署
+```bash
+vercel --prod
+```
+
+### 方法二：通过GitHub仓库部署
+
+1. 将代码推送到GitHub仓库
+```bash
+git add .
+git commit -m "准备部署到Vercel"
+git push
+```
+
+2. 登录[Vercel官网](https://vercel.com)
+
+3. 点击"Add New..." > "Project"
+
+4. 导入您的GitHub仓库
+
+5. 配置项目：
+   - 框架预设：Next.js
+   - 构建命令：`next build`
+   - 输出目录：`.next`
+
+6. 点击"Deploy"开始部署
+
+部署完成后，Vercel会提供一个URL访问您的应用。您也可以在Vercel控制面板中配置自定义域名。
+
 ## 贡献
 
 欢迎提交问题和拉取请求。对于重大更改，请先开启一个问题讨论您想要更改的内容。
