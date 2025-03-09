@@ -1,22 +1,25 @@
 import { Chapter, BilingualContent } from '../types';
-import madameBovaryData from './MadameBovary_translate_cache.json';
+import madameBovaryData from './MadameBovary_translate_cache_new.json';
 
 // 将JSON数据转换为BilingualContent对象
 function processJsonData(): BilingualContent[] {
   const content: BilingualContent[] = [];
-  let counter = 1;
   
-  // 遍历JSON对象的每个键（英文文本）
-  Object.entries(madameBovaryData).forEach(([english, data]) => {
-    // 排除元数据和标题等内容，只保留正文段落
-    // 可以根据实际数据调整过滤条件
-    if (english.length > 10 && !english.startsWith('Title:') && !english.startsWith('Author:') && !english.startsWith('Part')) {
+  // 从新的JSON格式中获取段落数据
+  if (!madameBovaryData.paragraphs) {
+    console.error('Invalid data format: paragraphs array not found');
+    return [];
+  }
+  
+  // 遍历段落数组
+  madameBovaryData.paragraphs.forEach((paragraph) => {
+    // 确保段落有source和translation字段
+    if (paragraph.source && paragraph.translation) {
       content.push({
-        id: `7-1-${counter}`, // 使用包法利夫人的书籍ID 7
-        english: english,
-        chinese: data.content, // JSON中的中文翻译
+        id: `7-1-${paragraph.id}`, // 使用段落的id
+        english: paragraph.source, // 英文原文
+        chinese: paragraph.translation, // 中文翻译
       });
-      counter++;
     }
   });
   
@@ -58,7 +61,7 @@ function createMadameBovaryChapters(): Chapter[] {
   
   // 查找章节标记在内容中的索引
   function findMarkerIndex(marker: string): number {
-    return allContent.findIndex(item => item.english.includes(marker));
+    return allContent.findIndex(item => item.english === marker);
   }
   
   // 查找所有章节标记的索引
@@ -76,11 +79,30 @@ function createMadameBovaryChapters(): Chapter[] {
     part1Ch7: findMarkerIndex(chapterMarkers.chapterSeven),
     part1Ch8: findMarkerIndex(chapterMarkers.chapterEight),
     part1Ch9: findMarkerIndex(chapterMarkers.chapterNine),
-    // 第二部分章节 - 由于JSON中没有明确标记，我们将使用第二部分的起始位置
-    part2Start: findMarkerIndex(chapterMarkers.partII),
-    // 第三部分章节 - 由于JSON中没有明确标记，我们将使用第三部分的起始位置
-    part3Start: findMarkerIndex(chapterMarkers.partIII)
+    // 第二部分章节
+    part2Ch1: -1, // 将在后面查找
+    // 第三部分章节
+    part3Ch1: -1 // 将在后面查找
   };
+  
+  // 在特定部分内查找章节标记
+  function findChapterInPart(marker: string, startIdx: number, endIdx: number): number {
+    for (let i = startIdx; i < endIdx; i++) {
+      if (allContent[i].english === marker) {
+        return i;
+      }
+    }
+    return -1;
+  }
+  
+  // 查找第二部分和第三部分的第一章
+  if (markerIndices.partII > -1) {
+    markerIndices.part2Ch1 = findChapterInPart(chapterMarkers.chapterOne, markerIndices.partII, markerIndices.partIII > -1 ? markerIndices.partIII : allContent.length);
+  }
+  
+  if (markerIndices.partIII > -1) {
+    markerIndices.part3Ch1 = findChapterInPart(chapterMarkers.chapterOne, markerIndices.partIII, allContent.length);
+  }
   
   // 创建章节
   const chapters: Chapter[] = [];
@@ -125,9 +147,9 @@ function createMadameBovaryChapters(): Chapter[] {
     }
     
     // 创建章节内容
-    const chapterContent = allContent.slice(startIndex, endIndex).map((item, idx) => ({
+    const chapterContent = allContent.slice(startIndex, endIndex).map((item) => ({
       ...item,
-      id: `7-1-${i}-${idx + 1}`
+      id: `7-1-${i}-${item.id}` // 使用原始段落ID作为标识的一部分
     }));
     
     // 添加章节
@@ -144,47 +166,62 @@ function createMadameBovaryChapters(): Chapter[] {
   // 由于JSON中没有明确的章节标记，我们将平均分配内容
   
   // 第二部分
-  const part2Content = allContent.slice(markerIndices.partII, markerIndices.partIII);
-  const part2ChapterSize = Math.ceil(part2Content.length / partStructure.part2);
-  
-  for (let i = 1; i <= partStructure.part2; i++) {
-    const startIndex = (i - 1) * part2ChapterSize;
-    const endIndex = Math.min(i * part2ChapterSize, part2Content.length);
+  if (markerIndices.partII > -1) {
+    // 第二部分的结束位置
+    const part2End = markerIndices.partIII > -1 ? markerIndices.partIII : allContent.length;
     
-    const chapterContent = part2Content.slice(startIndex, endIndex).map((item, idx) => ({
-      ...item,
-      id: `7-2-${i}-${idx + 1}`
-    }));
+    // 计算每个章节的大致大小
+    const part2Content = allContent.slice(markerIndices.partII, part2End);
+    const part2ChapterSize = Math.ceil(part2Content.length / partStructure.part2);
     
-    chapters.push({
-      id: `7-2-${i}`,
-      bookId: '7',
-      chapterNumber: partStructure.part1 + i,
-      title: `PART II - Chapter ${i}`,
-      content: chapterContent
-    });
+    // 第二部分章节的起始位置
+    const part2StartIndex = markerIndices.part2Ch1 > -1 ? markerIndices.part2Ch1 : markerIndices.partII;
+    
+    for (let i = 1; i <= partStructure.part2; i++) {
+      const startIndex = part2StartIndex + (i - 1) * part2ChapterSize;
+      const endIndex = i === partStructure.part2 ? part2End : part2StartIndex + i * part2ChapterSize;
+      
+      const chapterContent = allContent.slice(startIndex, endIndex).map((item) => ({
+        ...item,
+        id: `7-2-${i}-${item.id}` // 使用原始段落ID作为标识的一部分
+      }));
+      
+      chapters.push({
+        id: `7-2-${i}`,
+        bookId: '7',
+        chapterNumber: partStructure.part1 + i,
+        title: `PART II - Chapter ${i}`,
+        content: chapterContent
+      });
+    }
   }
   
   // 第三部分
-  const part3Content = allContent.slice(markerIndices.partIII);
-  const part3ChapterSize = Math.ceil(part3Content.length / partStructure.part3);
-  
-  for (let i = 1; i <= partStructure.part3; i++) {
-    const startIndex = (i - 1) * part3ChapterSize;
-    const endIndex = Math.min(i * part3ChapterSize, part3Content.length);
+  if (markerIndices.partIII > -1) {
+    // 计算每个章节的大致大小
+    const part3Content = allContent.slice(markerIndices.partIII);
+    const part3ChapterSize = Math.ceil(part3Content.length / partStructure.part3);
     
-    const chapterContent = part3Content.slice(startIndex, endIndex).map((item, idx) => ({
-      ...item,
-      id: `7-3-${i}-${idx + 1}`
-    }));
+    // 第三部分章节的起始位置
+    const part3StartIndex = markerIndices.part3Ch1 > -1 ? markerIndices.part3Ch1 : markerIndices.partIII;
     
-    chapters.push({
-      id: `7-3-${i}`,
-      bookId: '7',
-      chapterNumber: partStructure.part1 + partStructure.part2 + i,
-      title: `PART III - Chapter ${i}`,
-      content: chapterContent
-    });
+    for (let i = 1; i <= partStructure.part3; i++) {
+      const startIndex = part3StartIndex + (i - 1) * part3ChapterSize;
+      const endIndex = i === partStructure.part3 ? allContent.length : part3StartIndex + i * part3ChapterSize;
+      
+      const chapterContent = allContent.slice(startIndex, endIndex).map((item) => ({
+        ...item,
+        id: `7-3-${i}-${item.id}` // 使用原始段落ID作为标识的一部分
+      }));
+      
+      chapters.push({
+        id: `7-3-${i}`,
+        bookId: '7',
+        chapterNumber: partStructure.part1 + partStructure.part2 + i,
+        title: `PART III - Chapter ${i}`,
+        content: chapterContent
+      });
+    }
   }
   
   return chapters;
