@@ -3,10 +3,21 @@ import { Book } from '../types';
 export const books: Book[] = [
   {
     id: '7',
-    title: '包法利夫人',
+    title: '包法利夫人 (GPT-4o mini)',
     author: '居斯塔夫·福楼拜',
     coverImage: '',
     description: '《包法利夫人》是法国作家居斯塔夫·福楼拜于1857年发表的写实主义小说，被认为是现代小说的开端之一。小说讲述了乡村医生夏尔·包法利的妻子艾玛·包法利追求浪漫却陷入不满和欲望的生活，最终走向悲剧的故事。作品以细腻的心理描写和对平凡生活的精确刻画著称。',
+    publishYear: 1857,
+    language: 'French',
+    totalChapters: 35,
+    category: ['Classic', 'Realism', 'Fiction'],
+  },
+  {
+    id: '8',
+    title: '包法利夫人 (GPT-4.5)',
+    author: '居斯塔夫·福楼拜',
+    coverImage: '',
+    description: '《包法利夫人》是法国作家居斯塔夫·福楼拜于1857年发表的写实主义小说，被认为是现代小说的开端之一。小说讲述了乡村医生夏尔·包法利的妻子艾玛·包法利追求浪漫却陷入不满和欲望的生活，最终走向悲剧的故事。作品以细腻的心理描写和对平凡生活的精确刻画著称。本版本由GPT-4.5翻译。',
     publishYear: 1857,
     language: 'French',
     totalChapters: 35,
