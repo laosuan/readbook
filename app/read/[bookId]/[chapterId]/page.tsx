@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { books } from '../../../data/books';
-import { chapters } from '../../../data/chapters';
+import { getChapters } from '../../../data/chapters';
 import { Book, Chapter } from '../../../types';
 import BilingualReader from '../../../components/BilingualReader';
 import LoadingSpinner from '../../../components/LoadingSpinner';
@@ -32,9 +32,12 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string;
         if (foundBook) {
           setBook(foundBook);
           
+          // Get chapters and find the current chapter
+          const allChapters = await getChapters();
+          
           // Find the chapter by number
           const chapterNumber = parseInt(chapterId, 10);
-          const foundChapter = chapters.find(
+          const foundChapter = allChapters.find(
             (c) => c.bookId === bookId && c.chapterNumber === chapterNumber
           );
         

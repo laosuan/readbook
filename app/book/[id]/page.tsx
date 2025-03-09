@@ -1,10 +1,11 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { books } from '../../data/books';
-import { chapters } from '../../data/chapters';
+import { getChapters } from '../../data/chapters';
 import BookCoverPlaceholder from '../../components/BookCoverPlaceholder';
 import { Metadata } from 'next';
-
+import { Chapter } from '../../types';
+import ChapterList from './ChapterList';
 
 export async function generateMetadata({
   params,
@@ -34,7 +35,17 @@ export default async function BookDetail({
 }) {
   const { id } = await params;
   const book = books.find((b) => b.id === id);
-  const bookChapters = chapters.filter((c) => c.bookId === id);
+  
+  // Add error handling and debugging for chapter fetching
+  let chapters: Chapter[] = [];
+  let bookChapters: Chapter[] = [];
+  try {
+    chapters = await getChapters();
+
+    bookChapters = chapters.filter((c) => c.bookId === id);
+  } catch (error) {
+    console.error('Error fetching or filtering chapters:', error);
+  }
   
   if (!book) {
     return (
@@ -147,31 +158,7 @@ export default async function BookDetail({
         <div className="mt-12">
           <h2 className="text-2xl font-bold text-secondary-900 dark:text-secondary-100 mb-6">章节列表</h2>
           <div className="bg-card-light dark:bg-card-dark rounded-lg shadow-md overflow-hidden border border-secondary-100 dark:border-secondary-800">
-            <ul className="divide-y divide-secondary-200 dark:divide-secondary-800">
-              {bookChapters.map((chapter) => (
-                <li key={chapter.id}>
-                  <Link 
-                    href={`/read/${book.id}/${chapter.chapterNumber}`}
-                    className="block hover:bg-secondary-50 dark:hover:bg-secondary-800 transition-colors duration-150"
-                  >
-                    <div className="px-6 py-4">
-                      <div className="flex items-center justify-between">
-                        <p className="text-lg font-medium text-secondary-900 dark:text-secondary-100">
-                          {book.id === '7' ? (
-                            chapter.title
-                          ) : (
-                            `第 ${chapter.chapterNumber} 章: ${chapter.title}`
-                          )}
-                        </p>
-                        <svg className="h-5 w-5 text-secondary-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                        </svg>
-                      </div>
-                    </div>
-                  </Link>
-                </li>
-              ))}
-            </ul>
+            <ChapterList bookId={id} initialChapters={bookChapters} />
           </div>
         </div>
       </div>

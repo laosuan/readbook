@@ -1,18 +1,40 @@
 import { Chapter, BilingualContent } from '../types';
-import madameBovaryData from './MadameBovary_translate_cache_gpt4omini.json';
+// Replace local import with a function to fetch data from CDN
+// import madameBovaryData from './MadameBovary_translate_cache_gpt4omini.json';
+
+// Function to fetch Madame Bovary data from CDN
+async function fetchMadameBovaryData() {
+  try {
+    // Direct access to CDN URL now that CORS is configured
+    const url = 'https://cdn.readwordly.com/MadameBovary_translate_cache_gpt4omini.json';
+    
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch data: ${response.status} ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    return { paragraphs: [] }; // Return empty data structure on error
+  }
+}
 
 // 将JSON数据转换为BilingualContent对象
-function processJsonData(): BilingualContent[] {
+async function processJsonData(): Promise<BilingualContent[]> {
   const content: BilingualContent[] = [];
+  
+  // Fetch data from CDN
+  const madameBovaryData = await fetchMadameBovaryData();
   
   // 从新的JSON格式中获取段落数据
   if (!madameBovaryData.paragraphs) {
     console.error('Invalid data format: paragraphs array not found');
     return [];
   }
-  
+
   // 遍历段落数组
-  madameBovaryData.paragraphs.forEach((paragraph) => {
+  madameBovaryData.paragraphs.forEach((paragraph: { id: string; source: string; translation: string }) => {
     // 确保段落有source和translation字段
     if (paragraph.source && paragraph.translation) {
       content.push({
@@ -27,9 +49,9 @@ function processJsonData(): BilingualContent[] {
 }
 
 // 通过JSON数据构建包法利夫人的全部章节内容
-function createMadameBovaryChapters(): Chapter[] {
-  const allContent = processJsonData();
-  
+async function createMadameBovaryChapters(): Promise<Chapter[]> {
+  const allContent = await processJsonData();
+
   // 定义各部分章节数
   const partStructure = {
     part1: 9,  // 第一部分有9章
@@ -357,10 +379,43 @@ function createMadameBovaryChapters(): Chapter[] {
     }
   }
   
+  // Log the first few chapters to help with debugging
+  if (chapters.length > 0) {
+    console.log('First chapter:', {
+      id: chapters[0].id,
+      bookId: chapters[0].bookId,
+      chapterNumber: chapters[0].chapterNumber,
+      title: chapters[0].title,
+      contentLength: chapters[0].content.length
+    });
+  } else {
+    console.log('No chapters were created');
+  }
+  
   return chapters;
 }
 
-export const chapters: Chapter[] = [
-  // 添加包法利夫人的所有章节
-  ...createMadameBovaryChapters()
-];
+// Instead of exporting a static array, export a function to get chapters
+let cachedChapters: Chapter[] | null = null;
+
+export async function getChapters(): Promise<Chapter[]> {
+  if (cachedChapters && cachedChapters.length > 0) {
+    return cachedChapters;
+  }
+  
+  cachedChapters = await createMadameBovaryChapters();
+
+  return cachedChapters;
+}
+
+// For backward compatibility, also export a chapters object that will be populated asynchronously
+export let chapters: Chapter[] = [];
+
+// Initialize chapters on module load
+(async () => {
+  try {
+    chapters = await getChapters();
+  } catch (error) {
+    console.error('Failed to initialize chapters:', error);
+  }
+})();
