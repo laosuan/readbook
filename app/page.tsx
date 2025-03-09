@@ -44,7 +44,7 @@ export default function Home() {
                 探索经典文学作品，提升您的英语阅读能力，感受文学的魅力。通过中英对照阅读，轻松理解原著内容。
               </p>
               <div className="mt-10 flex flex-wrap gap-4">
-                <Link href="/library" className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-lg shadow-md text-white bg-primary hover:bg-primary-dark transition-colors duration-300">
+                <Link href="/library" className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-lg shadow-md dark:bg-secondary-800 text-secondary-700  bg-primary hover:bg-primary-dark transition-colors duration-300">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
                     <path d="M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 14c1.669 0 3.218.51 4.5 1.385A7.962 7.962 0 0114.5 14c1.255 0 2.443.29 3.5.804v-10A7.968 7.968 0 0014.5 4c-1.255 0-2.443.29-3.5.804V12a1 1 0 11-2 0V4.804z" />
                   </svg>
@@ -66,7 +66,7 @@ export default function Home() {
                     height={300}
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
-                  <div className="absolute bottom-0 left-0 right-0 p-4 text-white">
+                  <div className="absolute bottom-0 left-0 right-0 p-4 dark:bg-secondary-800 text-secondary-700">
                     <p className="text-sm font-medium">探索世界文学经典</p>
                     <p className="text-xs opacity-80">中英对照，轻松阅读</p>
                   </div>
@@ -124,7 +124,7 @@ export default function Home() {
               ].map((feature, index) => (
                 <div key={index} className="relative">
                   <dt>
-                    <div className="absolute flex items-center justify-center h-12 w-12 rounded-md bg-primary text-white">
+                    <div className="absolute flex items-center justify-center h-12 w-12 rounded-md bg-primary dark:bg-secondary-800 text-secondary-700">
                       {feature.icon}
                     </div>
                     <p className="ml-16 text-lg leading-6 font-medium text-foreground">{feature.title}</p>
@@ -158,7 +158,7 @@ export default function Home() {
         </div>
 
         <div className="mt-16 text-center">
-          <Link href="/library" className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-lg shadow-md text-white bg-primary hover:bg-primary-dark transition-colors duration-300">
+          <Link href="/library" className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-lg shadow-md dark:bg-secondary-800 text-secondary-700 bg-primary hover:bg-primary-dark transition-colors duration-300">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M10.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L12.586 11H5a1 1 0 110-2h7.586l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
             </svg>

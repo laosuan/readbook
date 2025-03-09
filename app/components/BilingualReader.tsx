@@ -64,7 +64,7 @@ export default function BilingualReader({ content, chapterTitle }: BilingualRead
           </div>
           <button
             onClick={toggleLanguage}
-            className="px-3 py-1 rounded-md bg-primary-600 dark:bg-primary-500 text-white text-sm hover:bg-primary-700 dark:hover:bg-primary-600"
+            className="px-3 py-1 rounded-md bg-primary-600 dark:bg-primary-500 dark:bg-secondary-800 text-secondary-700 text-sm hover:bg-primary-700 dark:hover:bg-primary-600"
           >
             {showBoth ? '仅显示英文' : showEnglish ? '仅显示中文' : '双语对照'}
           </button>

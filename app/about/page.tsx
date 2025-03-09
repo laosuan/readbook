@@ -21,7 +21,7 @@ export default function About() {
           <ul className="space-y-4">
             <li className="flex">
               <div className="flex-shrink-0">
-                <div className="flex items-center justify-center h-8 w-8 rounded-md bg-primary-500 dark:bg-primary-600 text-white">
+                <div className="flex items-center justify-center h-8 w-8 rounded-md bg-primary-500 dark:bg-primary-600 text-secondary-700 ">
                   <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
@@ -34,7 +34,7 @@ export default function About() {
             </li>
             <li className="flex">
               <div className="flex-shrink-0">
-                <div className="flex items-center justify-center h-8 w-8 rounded-md bg-primary-500 dark:bg-primary-600 text-white">
+                <div className="flex items-center justify-center h-8 w-8 rounded-md bg-primary-500 dark:bg-secondary-800 text-secondary-700">
                   <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
@@ -47,7 +47,7 @@ export default function About() {
             </li>
             <li className="flex">
               <div className="flex-shrink-0">
-                <div className="flex items-center justify-center h-8 w-8 rounded-md bg-primary-500 dark:bg-primary-600 text-white">
+                <div className="flex items-center justify-center h-8 w-8 rounded-md bg-primary-500 dark:bg-secondary-800 text-secondary-700 ">
                   <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>

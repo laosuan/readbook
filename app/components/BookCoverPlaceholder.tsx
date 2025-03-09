@@ -47,8 +47,8 @@ export default function BookCoverPlaceholder({
       className={`${backgroundColor} rounded-md shadow-md flex flex-col items-center justify-center text-center p-4 overflow-hidden`}
       style={{ width, height }}
     >
-      <h3 className="text-white font-bold text-lg mb-2 line-clamp-3">{title}</h3>
-      <p className="text-white/80 text-sm italic line-clamp-2">{author}</p>
+      <h3 className="dark:bg-secondary-800 text-secondary-700 font-bold text-lg mb-2 line-clamp-3">{title}</h3>
+      <p className="dark:bg-secondary-800 text-secondary-700 text-sm italic line-clamp-2">{author}</p>
     </div>
   );
 } 

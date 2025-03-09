@@ -75,7 +75,7 @@ export default function BookSearch({ onSearch }: BookSearchProps) {
       <div className="flex space-x-2">
         <button
           onClick={handleSearch}
-          className="px-4 py-2 bg-primary-600 dark:bg-primary-500 text-white rounded-md hover:bg-primary-700 dark:hover:bg-primary-600 flex-1"
+          className="px-4 py-2 bg-primary-600 dark:bg-primary-500 dark:bg-secondary-800 text-secondary-700  rounded-md hover:bg-primary-700 dark:hover:bg-primary-600 flex-1"
         >
           搜索
         </button>

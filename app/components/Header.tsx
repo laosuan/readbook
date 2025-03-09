@@ -132,7 +132,7 @@ export default function Header() {
             >
               {getThemeIcon()}
             </button>
-            <Link href="/login" className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-colors duration-300 shadow-sm">
+            <Link href="/login" className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md dark:bg-secondary-800 text-secondary-700 dark:bg-secondary-800 text-secondary-700 bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-colors duration-300 shadow-sm">
               登录
             </Link>
           </div>

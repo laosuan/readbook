@@ -90,7 +90,7 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string;
           <div className="mt-6">
             <Link
               href="/library"
-              className="inline-flex items-center px-4 py-2 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-primary-600 hover:bg-primary-700 dark:bg-primary-500 dark:hover:bg-primary-600"
+              className="inline-flex items-center px-4 py-2 border border-transparent text-base font-medium rounded-md shadow-sm dark:bg-secondary-800 text-secondary-700  bg-primary-600 hover:bg-primary-700 dark:bg-primary-500 dark:hover:bg-primary-600"
             >
               返回书库
             </Link>
@@ -170,14 +170,14 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string;
           {nextChapter ? (
             <Link
               href={`/read/${book.id}/${nextChapter}`}
-              className="px-4 py-2 bg-primary-600 dark:bg-primary-500 text-white rounded-md hover:bg-primary-700 dark:hover:bg-primary-600"
+              className="px-4 py-2 bg-secondary-100 dark:bg-secondary-800 text-secondary-700 dark:text-secondary-300 rounded-md hover:bg-secondary-200 dark:hover:bg-secondary-700"
             >
               下一章
             </Link>
           ) : (
             <Link
               href={`/book/${book.id}`}
-              className="px-4 py-2 bg-primary-600 dark:bg-primary-500 text-white rounded-md hover:bg-primary-700 dark:hover:bg-primary-600"
+              className="px-4 py-2 bg-primary-600 dark:bg-primary-500 dark:bg-secondary-800 text-secondary-700 rounded-md hover:bg-primary-700 dark:hover:bg-primary-600"
             >
               返回书籍详情
             </Link>

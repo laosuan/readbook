@@ -37,8 +37,8 @@ export default function BookCard({ book }: BookCardProps) {
             </div>
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-          <div className="absolute bottom-0 left-0 right-0 p-4 text-white transform translate-y-full group-hover:translate-y-0 transition-transform duration-300">
-            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-primary/80 text-white backdrop-blur-sm">
+          <div className="absolute bottom-0 left-0 right-0 p-4 dark:bg-secondary-800 text-secondary-700 transform translate-y-full group-hover:translate-y-0 transition-transform duration-300">
+            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-primary/80 dark:bg-secondary-800 text-secondary-700 backdrop-blur-sm">
               {book.category[0]}
             </span>
           </div>

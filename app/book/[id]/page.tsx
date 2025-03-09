@@ -47,7 +47,7 @@ export default async function BookDetail({
           <div className="mt-6">
             <Link
               href="/library"
-              className="inline-flex items-center px-4 py-2 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-primary-600 hover:bg-primary-700 dark:bg-primary-500 dark:hover:bg-primary-600"
+              className="inline-flex items-center px-4 py-2 border border-transparent text-base font-medium rounded-md shadow-sm dark:bg-secondary-800 text-secondary-700 bg-primary-600 hover:bg-primary-700 dark:bg-primary-500 dark:hover:bg-primary-600"
             >
               返回书库
             </Link>
@@ -134,7 +134,7 @@ export default async function BookDetail({
                 <div className="mt-6">
                   <Link
                     href={`/read/${book.id}/1`}
-                    className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-primary-600 hover:bg-primary-700 dark:bg-primary-500 dark:hover:bg-primary-600"
+                    className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm dark:bg-secondary-800 text-secondary-700  hover:bg-primary-700 dark:bg-primary-500 dark:hover:bg-primary-600"
                   >
                     开始阅读
                   </Link>
