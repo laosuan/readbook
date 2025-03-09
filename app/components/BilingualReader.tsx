@@ -87,15 +87,6 @@ export default function BilingualReader({ content, chapterTitle }: BilingualRead
           </div>
         ))}
       </div>
-
-      <div className="mt-8 flex justify-between">
-        <button className="px-4 py-2 rounded-md bg-secondary-100 dark:bg-secondary-800 text-secondary-700 dark:text-secondary-300 hover:bg-secondary-200 dark:hover:bg-secondary-700">
-          上一章
-        </button>
-        <button className="px-4 py-2 rounded-md bg-primary-600 dark:bg-primary-500 text-white hover:bg-primary-700 dark:hover:bg-primary-600">
-          下一章
-        </button>
-      </div>
     </div>
   );
 } 
