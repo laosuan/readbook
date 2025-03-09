@@ -1,5 +1,5 @@
 import { Chapter, BilingualContent } from '../types';
-import madameBovaryData from './MadameBovary_translate_cache_new.json';
+import madameBovaryData from './MadameBovary_translate_cache_gpt4omini.json';
 
 // 将JSON数据转换为BilingualContent对象
 function processJsonData(): BilingualContent[] {
