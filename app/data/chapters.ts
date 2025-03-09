@@ -81,8 +81,32 @@ function createMadameBovaryChapters(): Chapter[] {
     part1Ch9: findMarkerIndex(chapterMarkers.chapterNine),
     // 第二部分章节
     part2Ch1: -1, // 将在后面查找
+    part2Ch2: -1,
+    part2Ch3: -1,
+    part2Ch4: -1,
+    part2Ch5: -1,
+    part2Ch6: -1,
+    part2Ch7: -1,
+    part2Ch8: -1,
+    part2Ch9: -1,
+    part2Ch10: -1,
+    part2Ch11: -1,
+    part2Ch12: -1,
+    part2Ch13: -1,
+    part2Ch14: -1,
+    part2Ch15: -1,
     // 第三部分章节
-    part3Ch1: -1 // 将在后面查找
+    part3Ch1: -1, // 将在后面查找
+    part3Ch2: -1,
+    part3Ch3: -1,
+    part3Ch4: -1,
+    part3Ch5: -1,
+    part3Ch6: -1,
+    part3Ch7: -1,
+    part3Ch8: -1,
+    part3Ch9: -1,
+    part3Ch10: -1,
+    part3Ch11: -1
   };
   
   // 在特定部分内查找章节标记
@@ -95,13 +119,41 @@ function createMadameBovaryChapters(): Chapter[] {
     return -1;
   }
   
-  // 查找第二部分和第三部分的第一章
+  // 查找第二部分和第三部分的所有章节
   if (markerIndices.partII > -1) {
-    markerIndices.part2Ch1 = findChapterInPart(chapterMarkers.chapterOne, markerIndices.partII, markerIndices.partIII > -1 ? markerIndices.partIII : allContent.length);
+    const part2EndIndex = markerIndices.partIII > -1 ? markerIndices.partIII : allContent.length;
+    
+    // 查找第二部分的所有章节
+    markerIndices.part2Ch1 = findChapterInPart(chapterMarkers.chapterOne, markerIndices.partII, part2EndIndex);
+    markerIndices.part2Ch2 = findChapterInPart(chapterMarkers.chapterTwo, markerIndices.partII, part2EndIndex);
+    markerIndices.part2Ch3 = findChapterInPart(chapterMarkers.chapterThree, markerIndices.partII, part2EndIndex);
+    markerIndices.part2Ch4 = findChapterInPart(chapterMarkers.chapterFour, markerIndices.partII, part2EndIndex);
+    markerIndices.part2Ch5 = findChapterInPart(chapterMarkers.chapterFive, markerIndices.partII, part2EndIndex);
+    markerIndices.part2Ch6 = findChapterInPart(chapterMarkers.chapterSix, markerIndices.partII, part2EndIndex);
+    markerIndices.part2Ch7 = findChapterInPart(chapterMarkers.chapterSeven, markerIndices.partII, part2EndIndex);
+    markerIndices.part2Ch8 = findChapterInPart(chapterMarkers.chapterEight, markerIndices.partII, part2EndIndex);
+    markerIndices.part2Ch9 = findChapterInPart(chapterMarkers.chapterNine, markerIndices.partII, part2EndIndex);
+    markerIndices.part2Ch10 = findChapterInPart(chapterMarkers.chapterTen, markerIndices.partII, part2EndIndex);
+    markerIndices.part2Ch11 = findChapterInPart(chapterMarkers.chapterEleven, markerIndices.partII, part2EndIndex);
+    markerIndices.part2Ch12 = findChapterInPart(chapterMarkers.chapterTwelve, markerIndices.partII, part2EndIndex);
+    markerIndices.part2Ch13 = findChapterInPart(chapterMarkers.chapterThirteen, markerIndices.partII, part2EndIndex);
+    markerIndices.part2Ch14 = findChapterInPart(chapterMarkers.chapterFourteen, markerIndices.partII, part2EndIndex);
+    markerIndices.part2Ch15 = findChapterInPart(chapterMarkers.chapterFifteen, markerIndices.partII, part2EndIndex);
   }
   
   if (markerIndices.partIII > -1) {
+    // 查找第三部分的所有章节
     markerIndices.part3Ch1 = findChapterInPart(chapterMarkers.chapterOne, markerIndices.partIII, allContent.length);
+    markerIndices.part3Ch2 = findChapterInPart(chapterMarkers.chapterTwo, markerIndices.partIII, allContent.length);
+    markerIndices.part3Ch3 = findChapterInPart(chapterMarkers.chapterThree, markerIndices.partIII, allContent.length);
+    markerIndices.part3Ch4 = findChapterInPart(chapterMarkers.chapterFour, markerIndices.partIII, allContent.length);
+    markerIndices.part3Ch5 = findChapterInPart(chapterMarkers.chapterFive, markerIndices.partIII, allContent.length);
+    markerIndices.part3Ch6 = findChapterInPart(chapterMarkers.chapterSix, markerIndices.partIII, allContent.length);
+    markerIndices.part3Ch7 = findChapterInPart(chapterMarkers.chapterSeven, markerIndices.partIII, allContent.length);
+    markerIndices.part3Ch8 = findChapterInPart(chapterMarkers.chapterEight, markerIndices.partIII, allContent.length);
+    markerIndices.part3Ch9 = findChapterInPart(chapterMarkers.chapterNine, markerIndices.partIII, allContent.length);
+    markerIndices.part3Ch10 = findChapterInPart(chapterMarkers.chapterTen, markerIndices.partIII, allContent.length);
+    markerIndices.part3Ch11 = findChapterInPart(chapterMarkers.chapterEleven, markerIndices.partIII, allContent.length);
   }
   
   // 创建章节
@@ -162,30 +214,76 @@ function createMadameBovaryChapters(): Chapter[] {
     });
   }
   
-  // 为第二部分和第三部分创建章节
-  // 由于JSON中没有明确的章节标记，我们将平均分配内容
-  
-  // 第二部分
+  // 为第二部分创建章节
   if (markerIndices.partII > -1) {
-    // 第二部分的结束位置
-    const part2End = markerIndices.partIII > -1 ? markerIndices.partIII : allContent.length;
-    
-    // 计算每个章节的大致大小
-    const part2Content = allContent.slice(markerIndices.partII, part2End);
-    const part2ChapterSize = Math.ceil(part2Content.length / partStructure.part2);
-    
-    // 第二部分章节的起始位置
-    const part2StartIndex = markerIndices.part2Ch1 > -1 ? markerIndices.part2Ch1 : markerIndices.partII;
-    
     for (let i = 1; i <= partStructure.part2; i++) {
-      const startIndex = part2StartIndex + (i - 1) * part2ChapterSize;
-      const endIndex = i === partStructure.part2 ? part2End : part2StartIndex + i * part2ChapterSize;
+      let startIndex, endIndex;
       
+      // 确定章节的起始和结束索引
+      if (i === 1) {
+        startIndex = markerIndices.part2Ch1;
+        endIndex = markerIndices.part2Ch2 > -1 ? markerIndices.part2Ch2 : markerIndices.partIII;
+      } else if (i === 2) {
+        startIndex = markerIndices.part2Ch2;
+        endIndex = markerIndices.part2Ch3 > -1 ? markerIndices.part2Ch3 : markerIndices.partIII;
+      } else if (i === 3) {
+        startIndex = markerIndices.part2Ch3;
+        endIndex = markerIndices.part2Ch4 > -1 ? markerIndices.part2Ch4 : markerIndices.partIII;
+      } else if (i === 4) {
+        startIndex = markerIndices.part2Ch4;
+        endIndex = markerIndices.part2Ch5 > -1 ? markerIndices.part2Ch5 : markerIndices.partIII;
+      } else if (i === 5) {
+        startIndex = markerIndices.part2Ch5;
+        endIndex = markerIndices.part2Ch6 > -1 ? markerIndices.part2Ch6 : markerIndices.partIII;
+      } else if (i === 6) {
+        startIndex = markerIndices.part2Ch6;
+        endIndex = markerIndices.part2Ch7 > -1 ? markerIndices.part2Ch7 : markerIndices.partIII;
+      } else if (i === 7) {
+        startIndex = markerIndices.part2Ch7;
+        endIndex = markerIndices.part2Ch8 > -1 ? markerIndices.part2Ch8 : markerIndices.partIII;
+      } else if (i === 8) {
+        startIndex = markerIndices.part2Ch8;
+        endIndex = markerIndices.part2Ch9 > -1 ? markerIndices.part2Ch9 : markerIndices.partIII;
+      } else if (i === 9) {
+        startIndex = markerIndices.part2Ch9;
+        endIndex = markerIndices.part2Ch10 > -1 ? markerIndices.part2Ch10 : markerIndices.partIII;
+      } else if (i === 10) {
+        startIndex = markerIndices.part2Ch10;
+        endIndex = markerIndices.part2Ch11 > -1 ? markerIndices.part2Ch11 : markerIndices.partIII;
+      } else if (i === 11) {
+        startIndex = markerIndices.part2Ch11;
+        endIndex = markerIndices.part2Ch12 > -1 ? markerIndices.part2Ch12 : markerIndices.partIII;
+      } else if (i === 12) {
+        startIndex = markerIndices.part2Ch12;
+        endIndex = markerIndices.part2Ch13 > -1 ? markerIndices.part2Ch13 : markerIndices.partIII;
+      } else if (i === 13) {
+        startIndex = markerIndices.part2Ch13;
+        endIndex = markerIndices.part2Ch14 > -1 ? markerIndices.part2Ch14 : markerIndices.partIII;
+      } else if (i === 14) {
+        startIndex = markerIndices.part2Ch14;
+        endIndex = markerIndices.part2Ch15 > -1 ? markerIndices.part2Ch15 : markerIndices.partIII;
+      } else if (i === 15) {
+        startIndex = markerIndices.part2Ch15;
+        endIndex = markerIndices.partIII > -1 ? markerIndices.partIII : allContent.length;
+      }
+      
+      // 如果找不到章节标记，则跳过
+      if (startIndex === -1) {
+        continue;
+      }
+      
+      // 如果找不到结束标记，使用下一个部分的开始或文件结束
+      if (endIndex === -1) {
+        endIndex = markerIndices.partIII > -1 ? markerIndices.partIII : allContent.length;
+      }
+      
+      // 创建章节内容
       const chapterContent = allContent.slice(startIndex, endIndex).map((item) => ({
         ...item,
         id: `7-2-${i}-${item.id}` // 使用原始段落ID作为标识的一部分
       }));
       
+      // 添加章节
       chapters.push({
         id: `7-2-${i}`,
         bookId: '7',
@@ -196,24 +294,59 @@ function createMadameBovaryChapters(): Chapter[] {
     }
   }
   
-  // 第三部分
+  // 为第三部分创建章节
   if (markerIndices.partIII > -1) {
-    // 计算每个章节的大致大小
-    const part3Content = allContent.slice(markerIndices.partIII);
-    const part3ChapterSize = Math.ceil(part3Content.length / partStructure.part3);
-    
-    // 第三部分章节的起始位置
-    const part3StartIndex = markerIndices.part3Ch1 > -1 ? markerIndices.part3Ch1 : markerIndices.partIII;
-    
     for (let i = 1; i <= partStructure.part3; i++) {
-      const startIndex = part3StartIndex + (i - 1) * part3ChapterSize;
-      const endIndex = i === partStructure.part3 ? allContent.length : part3StartIndex + i * part3ChapterSize;
+      let startIndex, endIndex;
       
+      // 确定章节的起始和结束索引
+      if (i === 1) {
+        startIndex = markerIndices.part3Ch1;
+        endIndex = markerIndices.part3Ch2 > -1 ? markerIndices.part3Ch2 : allContent.length;
+      } else if (i === 2) {
+        startIndex = markerIndices.part3Ch2;
+        endIndex = markerIndices.part3Ch3 > -1 ? markerIndices.part3Ch3 : allContent.length;
+      } else if (i === 3) {
+        startIndex = markerIndices.part3Ch3;
+        endIndex = markerIndices.part3Ch4 > -1 ? markerIndices.part3Ch4 : allContent.length;
+      } else if (i === 4) {
+        startIndex = markerIndices.part3Ch4;
+        endIndex = markerIndices.part3Ch5 > -1 ? markerIndices.part3Ch5 : allContent.length;
+      } else if (i === 5) {
+        startIndex = markerIndices.part3Ch5;
+        endIndex = markerIndices.part3Ch6 > -1 ? markerIndices.part3Ch6 : allContent.length;
+      } else if (i === 6) {
+        startIndex = markerIndices.part3Ch6;
+        endIndex = markerIndices.part3Ch7 > -1 ? markerIndices.part3Ch7 : allContent.length;
+      } else if (i === 7) {
+        startIndex = markerIndices.part3Ch7;
+        endIndex = markerIndices.part3Ch8 > -1 ? markerIndices.part3Ch8 : allContent.length;
+      } else if (i === 8) {
+        startIndex = markerIndices.part3Ch8;
+        endIndex = markerIndices.part3Ch9 > -1 ? markerIndices.part3Ch9 : allContent.length;
+      } else if (i === 9) {
+        startIndex = markerIndices.part3Ch9;
+        endIndex = markerIndices.part3Ch10 > -1 ? markerIndices.part3Ch10 : allContent.length;
+      } else if (i === 10) {
+        startIndex = markerIndices.part3Ch10;
+        endIndex = markerIndices.part3Ch11 > -1 ? markerIndices.part3Ch11 : allContent.length;
+      } else if (i === 11) {
+        startIndex = markerIndices.part3Ch11;
+        endIndex = allContent.length;
+      }
+      
+      // 如果找不到章节标记，则跳过
+      if (startIndex === -1) {
+        continue;
+      }
+      
+      // 创建章节内容
       const chapterContent = allContent.slice(startIndex, endIndex).map((item) => ({
         ...item,
         id: `7-3-${i}-${item.id}` // 使用原始段落ID作为标识的一部分
       }));
       
+      // 添加章节
       chapters.push({
         id: `7-3-${i}`,
         bookId: '7',
