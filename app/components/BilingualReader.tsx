@@ -48,7 +48,7 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
 
   // Set up intersection observer to track visible paragraphs
   useEffect(() => {
-    if (typeof window === 'undefined' || !showVocabulary || !(bookId === '7' || bookId === '8')) return;
+    if (typeof window === 'undefined' || !showVocabulary || !(bookId === '8')) return;
     
     const observerOptions = {
       root: null, // viewport
@@ -85,7 +85,7 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
 
   // Update vocabulary items when visible paragraphs change
   useEffect(() => {
-    if (!showVocabulary || !(bookId === '7' || bookId === '8')) {
+    if (!showVocabulary || !(bookId === '8')) {
       setVocabularyItems({});
       return;
     }
@@ -148,11 +148,11 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
       <div className="flex gap-10">  
         <div className="prose prose-lg flex-grow" style={{ fontSize: `${fontSize}px` }}>
           {content.map((item) => {
-            // Only load vocabulary for Madame Bovary books
-            const isVocabBook = bookId === '7' || bookId === '8';
+            // Only load vocabulary for bookId 8
+            const isVocabBook = bookId === '8';
             const vocabulary = isVocabBook && showVocabulary ? getVocabularyForParagraph(item.id) : [];
             const hasVocabulary = vocabulary.length > 0;
-            const isVisible = visibleParagraphs.has(item.id);
+            // const isVisible = visibleParagraphs.has(item.id); // Removed unused variable
             
             return (
               <div 

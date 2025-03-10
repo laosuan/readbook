@@ -60,7 +60,7 @@ export function highlightText(text: string, keywords: KeyWord[], isEnglish: bool
     return bText.length - aText.length;
   });
 
-  let result = text;
+  const result = text;
   let segments: Array<{ text: string; isHighlighted: boolean; keyword?: KeyWord }> = [{ text: result, isHighlighted: false }];
 
   for (const keyword of sortedKeywords) {
