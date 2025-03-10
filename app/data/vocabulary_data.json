@@ -1,0 +1,599 @@
+{
+    "title": "Madame Bovary",
+    "author": "Gustave Flaubert",
+    "language": {
+      "source": "English",
+      "target": "Chinese"
+    },
+    "vocabulary": [
+      {
+        "id": 1,
+        "key_words": [
+          {
+            "raw_en": "whatsoever",
+            "en": "whatsoever",
+            "cn": "任何",
+            "raw_cn": "自由地"
+          },
+          {
+            "raw_en": "re-use",
+            "en": "reuse",
+            "cn": "重新使用",
+            "raw_cn": "再次使用"
+          },
+          {
+            "raw_en": "terms",
+            "en": "term",
+            "cn": "条款",
+            "raw_cn": "条款"
+          },
+          {
+            "raw_en": "located",
+            "en": "locate",
+            "cn": "位于",
+            "raw_cn": "身处"
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "key_words": []
+      },
+      {
+        "id": 3,
+        "key_words": []
+      },
+      {
+        "id": 4,
+        "key_words": []
+      },
+      {
+        "id": 5,
+        "key_words": [
+          {
+            "raw_en": "Release date",
+            "en": "release date",
+            "cn": "发布日期",
+            "raw_cn": "首次发布"
+          },
+          {
+            "raw_en": "Most recently updated",
+            "en": "most recently updated",
+            "cn": "最新更新的",
+            "raw_cn": "最新更新"
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "key_words": []
+      },
+      {
+        "id": 7,
+        "key_words": []
+      },
+      {
+        "id": 8,
+        "key_words": []
+      },
+      {
+        "id": 9,
+        "key_words": []
+      },
+      {
+        "id": 10,
+        "key_words": [
+          {
+            "raw_en": "Translated from",
+            "en": "translate",
+            "cn": "翻译",
+            "raw_cn": "译"
+          }
+        ]
+      },
+      {
+        "id": 11,
+        "key_words": []
+      },
+      {
+        "id": 12,
+        "key_words": []
+      },
+      {
+        "id": 13,
+        "key_words": [
+          {
+            "raw_en": "inscribe",
+            "en": "inscribe",
+            "cn": "题写，刻写",
+            "raw_cn": "置于"
+          },
+          {
+            "raw_en": "dedication",
+            "en": "dedication",
+            "cn": "献词",
+            "raw_cn": "献词"
+          },
+          {
+            "raw_en": "owe",
+            "en": "owe",
+            "cn": "归功于",
+            "raw_cn": "归功于"
+          },
+          {
+            "raw_en": "magnificent",
+            "en": "magnificent",
+            "cn": "卓越的，壮丽的",
+            "raw_cn": "卓然出众的"
+          },
+          {
+            "raw_en": "defence",
+            "en": "defense",
+            "cn": "辩护，辩词",
+            "raw_cn": "辩辞"
+          },
+          {
+            "raw_en": "acquired",
+            "en": "acquire",
+            "cn": "获得，取得",
+            "raw_cn": "获得"
+          },
+          {
+            "raw_en": "as it were",
+            "en": "as it were",
+            "cn": "可以说，似乎",
+            "raw_cn": "仿佛"
+          },
+          {
+            "raw_en": "unexpected",
+            "en": "unexpected",
+            "cn": "意料之外的",
+            "raw_cn": "意料之外的"
+          },
+          {
+            "raw_en": "authority",
+            "en": "authority",
+            "cn": "权威性，分量",
+            "raw_cn": "厚重与力量"
+          }
+        ]
+      },
+      {
+        "id": 14,
+        "key_words": [
+          {
+            "raw_en": "homage",
+            "en": "homage",
+            "cn": "敬意",
+            "raw_cn": "敬意"
+          },
+          {
+            "raw_en": "gratitude",
+            "en": "gratitude",
+            "cn": "感激",
+            "raw_cn": "感激"
+          },
+          {
+            "raw_en": "how great soever",
+            "en": "however great",
+            "cn": "无论多么",
+            "raw_cn": "无论...多么"
+          },
+          {
+            "raw_en": "attain",
+            "en": "attain",
+            "cn": "达到",
+            "raw_cn": "企及"
+          },
+          {
+            "raw_en": "eloquence",
+            "en": "eloquence",
+            "cn": "雄辩",
+            "raw_cn": "雄辩"
+          },
+          {
+            "raw_en": "devotion",
+            "en": "devotion",
+            "cn": "赤诚",
+            "raw_cn": "赤诚"
+          }
+        ]
+      },
+      {
+        "id": 15,
+        "key_words": []
+      },
+      {
+        "id": 16,
+        "key_words": []
+      },
+      {
+        "id": 17,
+        "key_words": []
+      },
+      {
+        "id": 18,
+        "key_words": []
+      },
+      {
+        "id": 19,
+        "key_words": []
+      },
+      {
+        "id": 20,
+        "key_words": [
+          {
+            "raw_en": "head-master",
+            "en": "headmaster",
+            "cn": "校长",
+            "raw_cn": "校长"
+          },
+          {
+            "raw_en": "fellow",
+            "en": "fellow",
+            "cn": "同伴，伙伴",
+            "raw_cn": "学生"
+          },
+          {
+            "raw_en": "asleep",
+            "en": "asleep",
+            "cn": "睡着的",
+            "raw_cn": "昏昏欲睡"
+          },
+          {
+            "raw_en": "rose",
+            "en": "rise",
+            "cn": "起立，站起来",
+            "raw_cn": "起立"
+          },
+          {
+            "raw_en": "surprised at",
+            "en": "surprised at",
+            "cn": "对...感到惊讶",
+            "raw_cn": "被...惊动"
+          }
+        ]
+      },
+      {
+        "id": 21,
+        "key_words": [
+          {
+            "raw_en": "head-master",
+            "en": "headmaster",
+            "cn": "校长",
+            "raw_cn": "校长"
+          },
+          {
+            "raw_en": "made a sign",
+            "en": "make a sign",
+            "cn": "做手势",
+            "raw_cn": "打了个手势"
+          },
+          {
+            "raw_en": "turning to",
+            "en": "turn to",
+            "cn": "转向",
+            "raw_cn": "转向"
+          },
+          {
+            "raw_en": "in a low voice",
+            "en": "in a low voice",
+            "cn": "压低声音",
+            "raw_cn": "压低声音"
+          }
+        ]
+      },
+      {
+        "id": 22,
+        "key_words": []
+      },
+      {
+        "id": 23,
+        "key_words": [
+          {
+            "raw_en": "ill at ease",
+            "en": "ill at ease",
+            "cn": "不自在",
+            "raw_cn": "局促不安"
+          },
+          {
+            "raw_en": "broad-shouldered",
+            "en": "broad-shouldered",
+            "cn": "宽肩膀的",
+            "raw_cn": "肩膀不宽"
+          },
+          {
+            "raw_en": "arm-holes",
+            "en": "armhole",
+            "cn": "袖窿",
+            "raw_cn": "袖口"
+          },
+          {
+            "raw_en": "cuffs",
+            "en": "cuff",
+            "cn": "袖口",
+            "raw_cn": "袖口"
+          },
+          {
+            "raw_en": "braces",
+            "en": "braces",
+            "cn": "背带",
+            "raw_cn": "背带"
+          },
+          {
+            "raw_en": "hob-nailed",
+            "en": "hobnailed",
+            "cn": "钉有铁钉的",
+            "raw_cn": "带钉"
+          },
+          {
+            "raw_en": "chorister",
+            "en": "chorister",
+            "cn": "唱诗班成员",
+            "raw_cn": "唱诗班的小孩"
+          },
+          {
+            "raw_en": "reliable",
+            "en": "reliable",
+            "cn": "可靠的",
+            "raw_cn": "踏实可靠"
+          },
+          {
+            "raw_en": "stout",
+            "en": "stout",
+            "cn": "结实的",
+            "raw_cn": "结实厚重"
+          }
+        ]
+      },
+      {
+        "id": 24,
+        "key_words": [
+          {
+            "raw_en": "with all his ears",
+            "en": "with all one's ears",
+            "cn": "全神贯注地听",
+            "raw_cn": "聚精会神地"
+          },
+          {
+            "raw_en": "attentive",
+            "en": "attentive",
+            "cn": "专心的，注意的",
+            "raw_cn": "聚精会神"
+          },
+          {
+            "raw_en": "as if at a sermon",
+            "en": "as if at a sermon",
+            "cn": "如同在听布道",
+            "raw_cn": "就如同坐在教堂里听牧师讲道一般"
+          },
+          {
+            "raw_en": "not daring even to",
+            "en": "not dare to",
+            "cn": "甚至不敢",
+            "raw_cn": "一动也不敢动"
+          },
+          {
+            "raw_en": "cross his legs",
+            "en": "cross one's legs",
+            "cn": "翘起腿",
+            "raw_cn": "翘起腿"
+          },
+          {
+            "raw_en": "lean on his elbow",
+            "en": "lean on one's elbow",
+            "cn": "用胳膊肘支撑",
+            "raw_cn": "用胳膊肘支撑桌面"
+          },
+          {
+            "raw_en": "was obliged to",
+            "en": "be obliged to",
+            "cn": "不得不",
+            "raw_cn": "不得不"
+          },
+          {
+            "raw_en": "fall into line",
+            "en": "fall into line",
+            "cn": "排队，遵守纪律",
+            "raw_cn": "跟我们一同排队集合"
+          }
+        ]
+      },
+      {
+        "id": 25,
+        "key_words": [
+          {
+            "raw_en": "in the habit of",
+            "en": "be in the habit of",
+            "cn": "习惯于",
+            "raw_cn": "习惯"
+          },
+          {
+            "raw_en": "so as to",
+            "en": "so as to",
+            "cn": "为了，以便",
+            "raw_cn": "好"
+          },
+          {
+            "raw_en": "toss",
+            "en": "toss",
+            "cn": "随意扔、抛",
+            "raw_cn": "扔"
+          },
+          {
+            "raw_en": "hit against",
+            "en": "hit against",
+            "cn": "撞击",
+            "raw_cn": "撞在"
+          },
+          {
+            "raw_en": "it was \"the thing\"",
+            "en": "be the thing",
+            "cn": "很流行，很时髦",
+            "raw_cn": "这才叫有范儿呢"
+          }
+        ]
+      },
+      {
+        "id": 26,
+        "key_words": [
+          {
+            "raw_en": "composite order",
+            "en": "composite order",
+            "cn": "混合风格",
+            "raw_cn": "混杂了各式风格"
+          },
+          {
+            "raw_en": "traces",
+            "en": "trace",
+            "cn": "痕迹",
+            "raw_cn": "痕迹"
+          },
+          {
+            "raw_en": "bearskin",
+            "en": "bearskin",
+            "cn": "熊皮帽",
+            "raw_cn": "熊皮帽"
+          },
+          {
+            "raw_en": "shako",
+            "en": "shako",
+            "cn": "军用筒帽",
+            "raw_cn": "军用筒帽"
+          },
+          {
+            "raw_en": "billycock hat",
+            "en": "billycock hat",
+            "cn": "圆顶礼帽",
+            "raw_cn": "圆顶礼帽"
+          },
+          {
+            "raw_en": "sealskin cap",
+            "en": "sealskin cap",
+            "cn": "海豹皮软帽",
+            "raw_cn": "海豹皮软帽"
+          },
+          {
+            "raw_en": "dumb ugliness",
+            "en": "dumb ugliness",
+            "cn": "愚蠢的丑陋",
+            "raw_cn": "可怜且丑陋至极"
+          },
+          {
+            "raw_en": "depths of expression",
+            "en": "depths of expression",
+            "cn": "深层表达",
+            "raw_cn": "潜藏着莫名的表情"
+          },
+          {
+            "raw_en": "imbecile",
+            "en": "imbecile",
+            "cn": "傻子",
+            "raw_cn": "傻子"
+          },
+          {
+            "raw_en": "stiffened",
+            "en": "stiffen",
+            "cn": "使变硬",
+            "raw_cn": "支撑结构"
+          },
+          {
+            "raw_en": "whalebone",
+            "en": "whalebone",
+            "cn": "鲸须",
+            "raw_cn": "鲸须"
+          },
+          {
+            "raw_en": "knobs",
+            "en": "knob",
+            "cn": "圆形突起",
+            "raw_cn": "圆结"
+          },
+          {
+            "raw_en": "lozenges",
+            "en": "lozenge",
+            "cn": "菱形",
+            "raw_cn": "菱形"
+          },
+          {
+            "raw_en": "velvet",
+            "en": "velvet",
+            "cn": "天鹅绒",
+            "raw_cn": "天鹅绒"
+          },
+          {
+            "raw_en": "polygon",
+            "en": "polygon",
+            "cn": "多边形",
+            "raw_cn": "多边形"
+          },
+          {
+            "raw_en": "braiding",
+            "en": "braiding",
+            "cn": "编织饰品",
+            "raw_cn": "编织饰品"
+          },
+          {
+            "raw_en": "tassel",
+            "en": "tassel",
+            "cn": "流苏",
+            "raw_cn": "流苏"
+          }
+        ]
+      },
+      {
+        "id": 27,
+        "key_words": []
+      },
+      {
+        "id": 28,
+        "key_words": [
+          {
+            "raw_en": "stooped",
+            "en": "stoop",
+            "cn": "弯腰",
+            "raw_cn": "弯腰"
+          },
+          {
+            "raw_en": "knocked it down",
+            "en": "knock down",
+            "cn": "击倒；打翻",
+            "raw_cn": "一碰"
+          },
+          {
+            "raw_en": "elbow",
+            "en": "elbow",
+            "cn": "肘部",
+            "raw_cn": "胳膊肘"
+          }
+        ]
+      },
+      {
+        "id": 29,
+        "key_words": []
+      },
+      {
+        "id": 30,
+        "key_words": [
+          {
+            "raw_en": "burst of laughter",
+            "en": "burst of laughter",
+            "cn": "爆发出笑声",
+            "raw_cn": "哄堂大笑"
+          },
+          {
+            "raw_en": "put out of countenance",
+            "en": "put out of countenance",
+            "cn": "使窘迫",
+            "raw_cn": "窘得不知所措"
+          },
+          {
+            "raw_en": "sat down",
+            "en": "sit down",
+            "cn": "坐下",
+            "raw_cn": "坐回原位"
+          }
+        ]
+      }
+    ]
+  }

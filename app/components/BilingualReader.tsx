@@ -145,7 +145,7 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
         </div>
       </div>
 
-      <div className="flex gap-6">  
+      <div className="flex gap-10">  
         <div className="prose prose-lg flex-grow" style={{ fontSize: `${fontSize}px` }}>
           {content.map((item) => {
             // Only load vocabulary for Madame Bovary books
@@ -178,7 +178,7 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
         
         {/* Fixed Vocabulary sidebar */}
         {showVocabulary && Object.keys(vocabularyItems).length > 0 && (
-          <div className="w-64 shrink-0 border-l border-secondary-200 dark:border-secondary-800 pl-4 sticky top-8 max-h-screen overflow-y-auto pb-8">
+          <div className="w-64 shrink-0 border-l border-secondary-200 dark:border-secondary-800 pl-6 ml-2 sticky top-8 max-h-screen overflow-y-auto pb-8">
             <h3 className="text-lg font-medium mb-3 text-secondary-900 dark:text-secondary-100 sticky top-0 bg-white dark:bg-secondary-950 py-2">重点词汇</h3>
             <div className="space-y-4">
               {Object.entries(vocabularyItems).map(([paragraphId, words]) => (
