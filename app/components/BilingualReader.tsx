@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { BilingualContent } from '../types';
 import { KeyWord, getVocabularyForParagraph, highlightText } from '../data/vocabulary';
 
@@ -15,7 +15,9 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
   const [showBoth, setShowBoth] = useState<boolean>(true);
   const [showEnglish, setShowEnglish] = useState<boolean>(true);
   const [showVocabulary, setShowVocabulary] = useState<boolean>(true);
-  const [selectedParagraph, setSelectedParagraph] = useState<string | null>(null);
+  const [visibleParagraphs, setVisibleParagraphs] = useState<Set<string>>(new Set());
+  const paragraphRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const [vocabularyItems, setVocabularyItems] = useState<{[key: string]: KeyWord[]}>({});
 
   const increaseFontSize = () => {
     if (fontSize < 24) {
@@ -44,9 +46,61 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
     setShowVocabulary(!showVocabulary);
   };
 
-  const handleParagraphClick = (paragraphId: string) => {
-    setSelectedParagraph(selectedParagraph === paragraphId ? null : paragraphId);
-  };
+  // Set up intersection observer to track visible paragraphs
+  useEffect(() => {
+    if (typeof window === 'undefined' || !showVocabulary || !(bookId === '7' || bookId === '8')) return;
+    
+    const observerOptions = {
+      root: null, // viewport
+      rootMargin: '0px',
+      threshold: 0.3, // at least 30% of the paragraph must be visible
+    };
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        const paragraphId = entry.target.getAttribute('data-paragraph-id');
+        if (!paragraphId) return;
+        
+        setVisibleParagraphs(prev => {
+          const newSet = new Set(prev);
+          if (entry.isIntersecting) {
+            newSet.add(paragraphId);
+          } else {
+            newSet.delete(paragraphId);
+          }
+          return newSet;
+        });
+      });
+    }, observerOptions);
+
+    // Observe all paragraph elements
+    paragraphRefs.current.forEach((element) => {
+      if (element) observer.observe(element);
+    });
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [showVocabulary, bookId]);
+
+  // Update vocabulary items when visible paragraphs change
+  useEffect(() => {
+    if (!showVocabulary || !(bookId === '7' || bookId === '8')) {
+      setVocabularyItems({});
+      return;
+    }
+    
+    const newVocabularyItems: {[key: string]: KeyWord[]} = {};
+    
+    visibleParagraphs.forEach(paragraphId => {
+      const vocab = getVocabularyForParagraph(paragraphId);
+      if (vocab.length > 0) {
+        newVocabularyItems[paragraphId] = vocab;
+      }
+    });
+    
+    setVocabularyItems(newVocabularyItems);
+  }, [visibleParagraphs, showVocabulary, bookId]);
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -80,7 +134,7 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
           >
             {showBoth ? '仅显示英文' : showEnglish ? '仅显示中文' : '双语对照'}
           </button>
-          {(bookId === '7' || bookId === '8') && (
+          {(bookId === '8') && (
             <button
               onClick={toggleVocabulary}
               className={`px-3 py-1 rounded-md text-secondary-700 text-sm ${showVocabulary ? 'bg-yellow-200 hover:bg-yellow-300 dark:bg-yellow-700 dark:hover:bg-yellow-600' : 'bg-secondary-200 hover:bg-secondary-300 dark:bg-secondary-700 dark:hover:bg-secondary-600'}`}
@@ -98,13 +152,14 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
             const isVocabBook = bookId === '7' || bookId === '8';
             const vocabulary = isVocabBook && showVocabulary ? getVocabularyForParagraph(item.id) : [];
             const hasVocabulary = vocabulary.length > 0;
-            const isSelected = selectedParagraph === item.id;
+            const isVisible = visibleParagraphs.has(item.id);
             
             return (
               <div 
                 key={item.id} 
-                className={`mb-6 pb-6 border-b border-secondary-200 dark:border-secondary-800 ${hasVocabulary ? 'cursor-pointer' : ''} ${isSelected ? 'bg-secondary-50 dark:bg-secondary-900 p-4 rounded-lg' : ''}`}
-                onClick={hasVocabulary ? () => handleParagraphClick(item.id) : undefined}
+                ref={(el: HTMLDivElement | null) => { if (el) paragraphRefs.current.set(item.id, el); }}
+                data-paragraph-id={item.id}
+                className={`mb-6 pb-6 border-b border-secondary-200 dark:border-secondary-800 ${hasVocabulary ? 'relative' : ''}`}
               >
                 {(showBoth || showEnglish) && (
                   <p className="mb-2 text-secondary-900 dark:text-secondary-100 leading-relaxed">
@@ -121,18 +176,24 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
           })}
         </div>
         
-        {/* Vocabulary sidebar */}
-        {selectedParagraph && (
-          <div className="w-64 shrink-0 border-l border-secondary-200 dark:border-secondary-800 pl-4">
-            <h3 className="text-lg font-medium mb-3 text-secondary-900 dark:text-secondary-100">重点词汇</h3>
-            <ul className="space-y-2">
-              {getVocabularyForParagraph(selectedParagraph).map((word, index) => (
-                <li key={index} className="p-2 bg-secondary-50 dark:bg-secondary-800 rounded">
-                  <div className="font-medium text-secondary-900 dark:text-secondary-100">{word.raw_en} - {word.raw_cn}</div>
-                  <div className="text-sm text-secondary-600 dark:text-secondary-400">{word.en} - {word.cn}</div>
-                </li>
+        {/* Fixed Vocabulary sidebar */}
+        {showVocabulary && Object.keys(vocabularyItems).length > 0 && (
+          <div className="w-64 shrink-0 border-l border-secondary-200 dark:border-secondary-800 pl-4 sticky top-8 max-h-screen overflow-y-auto pb-8">
+            <h3 className="text-lg font-medium mb-3 text-secondary-900 dark:text-secondary-100 sticky top-0 bg-white dark:bg-secondary-950 py-2">重点词汇</h3>
+            <div className="space-y-4">
+              {Object.entries(vocabularyItems).map(([paragraphId, words]) => (
+                <div key={paragraphId} className="border-b border-secondary-200 dark:border-secondary-800 pb-3">
+                  <ul className="space-y-2">
+                    {words.map((word, index) => (
+                      <li key={index} className="p-2 bg-secondary-50 dark:bg-secondary-800 rounded">
+                        <div className="font-medium text-secondary-900 dark:text-secondary-100">{word.raw_en} - {word.raw_cn}</div>
+                        <div className="text-sm text-secondary-600 dark:text-secondary-400">{word.en} - {word.cn}</div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               ))}
-            </ul>
+            </div>
           </div>
         )}
       </div>
