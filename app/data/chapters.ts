@@ -523,7 +523,7 @@ async function createBookChapters(config: BookConfig): Promise<Chapter[]> {
 
 // Cache for chapters and chapter metadata
 let cachedChapters: Chapter[] | null = null;
-let cachedChapterMetadata: Record<string, Chapter[]> = {};
+const cachedChapterMetadata: Record<string, Chapter[]> = {};
 
 // Cache to track in-progress chapter loading to prevent duplicate requests
 const loadingChapters: Record<string, Promise<Chapter | null>> = {};

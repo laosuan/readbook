@@ -164,8 +164,7 @@ export function highlightText(text: string, keywords: KeyWord[], isEnglish: bool
     return text;
   }
 
-  // Store original text for debugging
-  const originalText = text;
+  // Note: Original text storage removed (was unused)
   
   // Create a map of positions to keywords
   // This approach handles overlapping keywords by prioritizing based on position and length
