@@ -52,8 +52,8 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
     
     const observerOptions = {
       root: null, // viewport
-      rootMargin: '0px',
-      threshold: 0.3, // at least 30% of the paragraph must be visible
+      rootMargin: '0px', // 使用0px确保只有在视口中的段落才被标记为可见
+      threshold: 0.1, // 降低阈值，只需10%可见就触发
     };
 
     const observer = new IntersectionObserver((entries) => {
@@ -86,7 +86,7 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
     return () => {
       observer.disconnect();
     };
-  }, [showVocabulary, bookId]);
+  }, [showVocabulary, bookId, visibleParagraphs]);
 
   // Extract chapter information from content to limit vocabulary requests to current chapter only
   const currentChapterInfo = useMemo(() => {
@@ -108,8 +108,11 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
   // Update vocabulary items when visible paragraphs change
   useEffect(() => {
     if (!showVocabulary || !(bookId === '8') || !currentChapterInfo) {
+      console.log('Skipping vocabulary fetch - conditions not met:', { showVocabulary, bookId, currentChapterInfo });
       return;
     }
+    
+    console.log('Current visible paragraphs:', Array.from(visibleParagraphs));
     
     // Use a debounce timer to avoid excessive API calls
     let debounceTimer: NodeJS.Timeout | null = null;
@@ -118,8 +121,29 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
       // Keep existing vocabulary items
       const newVocabularyItems = {...vocabularyItems};
       
+      // Get visible paragraphs and add adjacent paragraphs for preloading
+      const visibleParagraphIds = Array.from(visibleParagraphs);
+      const paragraphIdsToCheck = new Set(visibleParagraphIds);
+      
+      // Add a few paragraphs ahead for preloading
+      visibleParagraphIds.forEach(paragraphId => {
+        const [bookId, part, chapter, numStr] = paragraphId.split('-');
+        const paragraphNum = parseInt(numStr, 10);
+        
+        // Add 5 paragraphs ahead for preloading
+        for (let i = 1; i <= 5; i++) {
+          const adjacentNum = paragraphNum + i;
+          if (adjacentNum > 0) {
+            const adjacentId = `${bookId}-${part}-${chapter}-${adjacentNum}`;
+            paragraphIdsToCheck.add(adjacentId);
+          }
+        }
+      });
+      
+      console.log('Checking paragraphs (including adjacent):', Array.from(paragraphIdsToCheck));
+      
       // Get only paragraphs that aren't already loaded and belong to the current chapter
-      const paragraphsToFetch = Array.from(visibleParagraphs).filter(paragraphId => {
+      const paragraphsToFetch = Array.from(paragraphIdsToCheck).filter(paragraphId => {
         // Skip if already loaded
         if (newVocabularyItems[paragraphId]) return false;
         
@@ -140,16 +164,26 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
       console.log(`Fetching vocabulary for ${paragraphsToFetch.length} new paragraphs in chapter ${currentChapterInfo.part}-${currentChapterInfo.chapter}`);
       
       // Process each new visible paragraph
-      for (const paragraphId of paragraphsToFetch) {
+      // Use Promise.all to fetch vocabulary for all paragraphs in parallel
+      const fetchPromises = paragraphsToFetch.map(async (paragraphId) => {
         try {
           const vocab = await getVocabularyForParagraph(paragraphId);
+          console.log(`Retrieved ${vocab.length} vocabulary items for paragraph ${paragraphId}`);
+          
           if (vocab.length > 0) {
             newVocabularyItems[paragraphId] = vocab;
+            console.log(`Added vocabulary for paragraph ${paragraphId}:`, vocab);
+          } else {
+            console.log(`No vocabulary found for paragraph ${paragraphId}`);
           }
+          return { success: true, paragraphId };
         } catch (error) {
           console.error(`Error fetching vocabulary for ${paragraphId}:`, error);
+          return { success: false, paragraphId, error };
         }
-      }
+      });
+      
+      await Promise.all(fetchPromises);
       
       setVocabularyItems(newVocabularyItems);
     };
@@ -160,7 +194,7 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
     }
     
     // Set a new timer to delay the fetch
-    debounceTimer = setTimeout(fetchVocabulary, 500);
+    debounceTimer = setTimeout(fetchVocabulary, 300);
     
     // Cleanup the timer on unmount
     return () => {
@@ -221,7 +255,13 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
             // Use vocabulary from state instead of fetching it directly
             const vocabulary = isVocabBook && showVocabulary ? vocabularyItems[item.id] || [] : [];
             const hasVocabulary = vocabulary.length > 0;
-            // const isVisible = visibleParagraphs.has(item.id); // Removed unused variable
+            
+            // Debug: uncomment to help track paragraph IDs with missing vocabulary
+            // useEffect(() => {
+            //   if (isVocabBook && showVocabulary && item.id === '8-1-1-24' && !hasVocabulary) {
+            //     console.log(`Paragraph ${item.id} missing vocabulary but should have it`);
+            //   }
+            // }, [item.id, hasVocabulary, isVocabBook, showVocabulary]);
             
             return (
               <div 
@@ -232,12 +272,40 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
               >
                 {(showBoth || showEnglish) && (
                   <p className="mb-2 text-secondary-900 dark:text-secondary-100 leading-relaxed">
-                    {isVocabBook && showVocabulary ? highlightText(item.english, vocabulary, true) : item.english}
+                    {isVocabBook && showVocabulary ? (
+                      vocabulary.length > 0 ? (
+                        <>
+                          {/* Add debug comment for development */}
+                          {/* <small className="text-xs text-gray-500">[DEBUG: {item.id} has {vocabulary.length} vocab items]</small> */}
+                          {highlightText(item.english, vocabulary, true)}
+                        </>
+                      ) : (
+                        <>
+                          {/* Add debug comment for development */}
+                          {/* <small className="text-xs text-gray-500">[DEBUG: No vocab for {item.id}]</small> */}
+                          {item.english}
+                        </>
+                      )
+                    ) : item.english}
                   </p>
                 )}
                 {(showBoth || !showEnglish) && (
                   <p className="text-secondary-700 dark:text-secondary-300 leading-relaxed">
-                    {isVocabBook && showVocabulary ? highlightText(item.chinese, vocabulary, false) : item.chinese}
+                    {isVocabBook && showVocabulary ? (
+                      vocabulary.length > 0 ? (
+                        <>
+                          {/* Add debug comment for development */}
+                          {/* <small className="text-xs text-gray-500">[DEBUG: {item.id} has {vocabulary.length} vocab items]</small> */}
+                          {highlightText(item.chinese, vocabulary, false)}
+                        </>
+                      ) : (
+                        <>
+                          {/* Add debug comment for development */}
+                          {/* <small className="text-xs text-gray-500">[DEBUG: No vocab for {item.id}]</small> */}
+                          {item.chinese}
+                        </>
+                      )
+                    ) : item.chinese}
                   </p>
                 )}
               </div>
@@ -248,23 +316,38 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
         {/* Fixed Vocabulary sidebar */}
         {showVocabulary && Object.keys(vocabularyItems).length > 0 && (
           <div className="w-64 shrink-0 border-l border-secondary-200 dark:border-secondary-800 pl-6 ml-2 sticky top-8 max-h-screen overflow-y-auto pb-8">
-            <h3 className="text-lg font-medium mb-3 text-secondary-900 dark:text-secondary-100 sticky top-0 border-secondary-200  dark:bg-secondary-950 py-2">重点词汇</h3>
+            <h3 className="text-lg font-medium mb-3 text-secondary-900 dark:text-secondary-100 sticky top-0 border-secondary-200 dark:bg-secondary-950 py-2">重点词汇</h3>
             <div className="space-y-4">
-              {/* Filter vocabulary to only show words from visible paragraphs */}
-              {Object.entries(vocabularyItems)
-                .filter(([paragraphId]) => visibleParagraphs.has(paragraphId))
-                .map(([paragraphId, words]) => (
-                  <div key={paragraphId} className="border-b border-secondary-200 dark:border-secondary-800 pb-3">
-                    <ul className="space-y-2">
-                      {words.map((word, index) => (
-                        <li key={index} className="p-2 bg-secondary-50 dark:bg-secondary-800 rounded">
-                          <div className="font-medium text-secondary-900 dark:text-secondary-100">{word.raw_en} - {word.raw_cn}</div>
-                          <div className="text-sm text-secondary-600 dark:text-secondary-400">{word.en} - {word.cn}</div>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-              ))}
+              {/* Show all vocabulary items from all currently visible paragraphs */}
+              {visibleParagraphs.size > 0 ? (
+                // First, collect all vocabulary words from visible paragraphs
+                Array.from(visibleParagraphs)
+                  // Sort paragraphs by their numeric ID for proper ordering
+                  .sort((a, b) => {
+                    const aNum = parseInt(a.split('-')[3], 10);
+                    const bNum = parseInt(b.split('-')[3], 10);
+                    return aNum - bNum;
+                  })
+                  // Filter to include only paragraphs that have vocabulary items
+                  .filter(paragraphId => vocabularyItems[paragraphId] && vocabularyItems[paragraphId].length > 0)
+                  // Map each paragraph to its vocabulary display
+                  .map(paragraphId => (
+                    <div key={paragraphId} className="border-b border-secondary-200 dark:border-secondary-800 pb-3">
+                      {/* Display paragraph number for reference */}
+                      {/* <div className="text-xs text-secondary-500 dark:text-secondary-400 mb-1">段落 {paragraphId.split('-')[3]}</div> */}
+                      <ul className="space-y-2">
+                        {vocabularyItems[paragraphId].map((word, index) => (
+                          <li key={index} className="p-2 bg-secondary-50 dark:bg-secondary-800 rounded">
+                            <div className="font-medium text-secondary-900 dark:text-secondary-100">{word.raw_en} - {word.raw_cn}</div>
+                            <div className="text-sm text-secondary-600 dark:text-secondary-400">{word.en} - {word.cn}</div>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))
+              ) : (
+                <div className="text-secondary-500 dark:text-secondary-400 italic">当前没有可见的段落词汇</div>
+              )}
             </div>
           </div>
         )}

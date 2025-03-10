@@ -49,6 +49,7 @@ const failedVocabularyRequests: Set<string> = new Set();
 
 // Function to get vocabulary for a specific paragraph by ID
 export async function getVocabularyForParagraph(paragraphId: string): Promise<KeyWord[]> {
+  console.log(`Getting vocabulary for paragraph: ${paragraphId}`);
   try {
     // Extract parts from the paragraph ID (format: bookId-part-chapter-paragraphId)
     const idParts = paragraphId.split('-');
@@ -140,7 +141,9 @@ export async function getVocabularyForParagraph(paragraphId: string): Promise<Ke
       
       // Find the vocabulary item with the matching ID in the cached data
       const vocabItem = vocabularyCache[cacheKey]?.find(item => item.id === numericId);
-      return vocabItem?.key_words || [];
+      const result = vocabItem?.key_words || [];
+      console.log(`Found ${result.length} vocabulary items for paragraph ${paragraphId} with ID ${numericId}:`, result);
+      return result;
     } else {
       // For old format IDs, we won't attempt to load from the full vocabulary file
       console.warn(`Invalid paragraph ID format: ${paragraphId}`);
@@ -154,68 +157,145 @@ export async function getVocabularyForParagraph(paragraphId: string): Promise<Ke
 
 // Function to highlight text with vocabulary words
 export function highlightText(text: string, keywords: KeyWord[], isEnglish: boolean): ReactNode {
-  if (!keywords || keywords.length === 0) {
+  // Debug information
+  console.log(`Highlighting ${isEnglish ? 'English' : 'Chinese'} text with ${keywords.length} keywords:`, keywords.map(k => isEnglish ? k.raw_en : k.raw_cn));
+  
+  if (!keywords || keywords.length === 0 || !text) {
     return text;
   }
 
-  // Sort keywords by length (longest first) to handle overlapping matches correctly
-  const sortedKeywords = [...keywords].sort((a, b) => {
-    const aText = isEnglish ? a.raw_en : a.raw_cn;
-    const bText = isEnglish ? b.raw_en : b.raw_cn;
-    return bText.length - aText.length;
-  });
-
-  const result = text;
-  let segments: Array<{ text: string; isHighlighted: boolean; keyword?: KeyWord }> = [{ text: result, isHighlighted: false }];
-
-  for (const keyword of sortedKeywords) {
+  // Store original text for debugging
+  const originalText = text;
+  
+  // Create a map of positions to keywords
+  // This approach handles overlapping keywords by prioritizing based on position and length
+  interface Match {
+    start: number;
+    end: number;
+    keyword: KeyWord;
+    text: string;
+  }
+  
+  const matches: Match[] = [];
+  
+  // Process each keyword to find all occurrences in the text
+  for (const keyword of keywords) {
     const rawText = isEnglish ? keyword.raw_en : keyword.raw_cn;
-    if (!rawText) continue;
-
-    const newSegments: Array<{ text: string; isHighlighted: boolean; keyword?: KeyWord }> = [];
-
-    for (const segment of segments) {
-      if (segment.isHighlighted) {
-        newSegments.push(segment);
-        continue;
+    if (!rawText || rawText.trim() === '') {
+      console.log('Skipping empty keyword:', keyword);
+      continue;
+    }
+    
+    console.log(`Finding matches for keyword: '${rawText}'`);
+    
+    // Create the appropriate regex based on language and word type
+    let regex: RegExp;
+    if (isEnglish) {
+      // Handle English words appropriately
+      if (/^[a-zA-Z]+$/.test(rawText)) {
+        // Pure alphabetical words - use word boundaries
+        regex = new RegExp(`\\b${escapeRegExp(rawText)}\\b`, 'gi');
+        console.log(`Using word boundary pattern for '${rawText}'`);
+      } else {
+        // Phrases or words with special characters - use exact match
+        regex = new RegExp(`${escapeRegExp(rawText)}`, 'gi');
+        console.log(`Using exact match pattern for '${rawText}'`);
       }
-
-      const parts = segment.text.split(new RegExp(`(${escapeRegExp(rawText)})`, 'i'));
+    } else {
+      // For Chinese, use exact match
+      regex = new RegExp(`${escapeRegExp(rawText)}`, 'g');
+    }
+    
+    // Find all matches in the text
+    let match;
+    while ((match = regex.exec(text)) !== null) {
+      const start = match.index;
+      const end = start + match[0].length;
+      console.log(`Match found for '${rawText}' at positions ${start}-${end}: '${match[0]}'`);
       
-      for (let i = 0; i < parts.length; i++) {
-        if (parts[i].toLowerCase() === rawText.toLowerCase()) {
-          newSegments.push({ 
-            text: parts[i], 
-            isHighlighted: true, 
-            keyword: keyword 
-          });
-        } else if (parts[i]) {
-          newSegments.push({ text: parts[i], isHighlighted: false });
-        }
+      // Add this match to our list
+      matches.push({
+        start,
+        end,
+        keyword,
+        text: match[0]
+      });
+      
+      // Prevent infinite loops with zero-width matches
+      if (match.index === regex.lastIndex) {
+        regex.lastIndex++;
       }
     }
-
-    segments = newSegments;
   }
-
-  // Use React.createElement instead of JSX for better TypeScript compatibility
-  const elements = segments.map((segment, index) => {
-    if (segment.isHighlighted) {
-      return React.createElement(
+  
+  // If no matches found, return the original text
+  if (matches.length === 0) {
+    console.log('No matches found in text');
+    return text;
+  }
+  
+  // Sort matches by start position (ascending) and then by length (descending) for overlaps
+  matches.sort((a, b) => {
+    if (a.start !== b.start) {
+      return a.start - b.start;
+    }
+    return b.end - a.end; // Longer matches come first
+  });
+  
+  // Filter out overlapping matches, keeping the earliest and longest ones
+  const filteredMatches: Match[] = [];
+  let lastEnd = -1;
+  
+  for (const match of matches) {
+    // Skip this match if it overlaps with a previously kept match
+    if (match.start < lastEnd) {
+      console.log(`Skipping overlapping match for '${isEnglish ? match.keyword.raw_en : match.keyword.raw_cn}'`);
+      continue;
+    }
+    
+    filteredMatches.push(match);
+    lastEnd = match.end;
+  }
+  
+  console.log(`Found ${filteredMatches.length} non-overlapping matches`);
+  
+  // If no valid matches after filtering, return original text
+  if (filteredMatches.length === 0) {
+    return text;
+  }
+  
+  // Build segments from matches
+  const segments: ReactNode[] = [];
+  let currentPosition = 0;
+  
+  for (const match of filteredMatches) {
+    // Add text before this match
+    if (match.start > currentPosition) {
+      segments.push(text.substring(currentPosition, match.start));
+    }
+    
+    // Add the highlighted match
+    segments.push(
+      React.createElement(
         'span',
         {
-          key: index,
+          key: `highlight-${match.start}`,
           className: "bg-yellow-100 dark:bg-yellow-900 rounded px-0.5 cursor-pointer",
-          title: isEnglish ? segment.keyword?.cn : segment.keyword?.en
+          title: isEnglish ? match.keyword.cn : match.keyword.en
         },
-        segment.text
-      );
-    } else {
-      return segment.text;
-    }
-  });
-
-  return React.createElement(React.Fragment, null, ...elements);
+        match.text
+      )
+    );
+    
+    currentPosition = match.end;
+  }
+  
+  // Add any remaining text after the last match
+  if (currentPosition < text.length) {
+    segments.push(text.substring(currentPosition));
+  }
+  
+  return React.createElement(React.Fragment, null, ...segments);
 }
 
 // Helper function to escape special characters in regex
