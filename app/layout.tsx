@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter, Noto_Serif_SC, Noto_Serif } from "next/font/google";
+import { Inter, Noto_Serif, Noto_Serif_SC } from "next/font/google";
 import "./globals.css";
 import Header from "./components/Header";
 import Footer from "./components/Footer";
@@ -12,11 +12,13 @@ const inter = Inter({
   display: 'swap',
 });
 
+// Configure Noto Serif SC with proper settings to avoid preloading errors
 const notoSerifSc = Noto_Serif_SC({ 
-  subsets: ["latin"],
   weight: ['400', '700'],
   variable: '--font-noto-serif-sc',
   display: 'swap',
+  preload: false,
+  subsets: ['latin']
 });
 
 const notoSerif = Noto_Serif({ 

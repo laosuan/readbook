@@ -5,6 +5,8 @@ interface BookConfig {
   id: string;
   cdnUrl: string;
   name: string;
+  useSplitFiles?: boolean;
+  cdnBaseUrl?: string;
 }
 
 // 书籍配置
@@ -12,37 +14,98 @@ const BOOK_CONFIGS: BookConfig[] = [
   {
     id: '7',
     cdnUrl: 'https://cdn.readwordly.com/MadameBovary_translate_cache_gpt4omini.json',
-    name: 'GPT-4o mini'
+    name: 'GPT-4o mini',
+    useSplitFiles: false
   },
   {
     id: '8',
-    cdnUrl: 'https://cdn.readwordly.com/MadameBovary_translate_cache_gpt45.json',
-    name: 'GPT-4.5'
+    cdnUrl: 'https://cdn.readwordly.com/MadameBovary_translate_bilingual_data_20250310.json',
+    name: 'GPT-4.5',
+    useSplitFiles: true,
+    cdnBaseUrl: 'https://cdn.readwordly.com/MadameBovary/20250310/'
   }
 ];
 
+// 记录已经尝试但未成功的URL，避免重复请求
+const failedDataUrls: Set<string> = new Set();
+
 // 通用函数：从CDN获取数据
-async function fetchBookData(config: BookConfig) {
+async function fetchBookData(config: BookConfig, part?: number, chapter?: number) {
   try {
-    const response = await fetch(config.cdnUrl);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch ${config.name} data: ${response.status} ${response.statusText}`);
+    let url = config.cdnUrl;
+    
+    // 如果使用分割文件，则构建URL
+    if (config.useSplitFiles && config.cdnBaseUrl && part !== undefined && chapter !== undefined) {
+      url = `${config.cdnBaseUrl}bilingual_${part}-${chapter}.json`;
     }
     
-    const data = await response.json();
-    return data;
+    // 如果该URL已经请求失败过，则直接返回空数据，避免重复请求
+    if (failedDataUrls.has(url)) {
+      console.log(`Skipping previously failed URL: ${url}`);
+      return { paragraphs: [] };
+    }
+    
+    console.log(`Fetching data from: ${url}`);
+    
+    // 实现重试逻辑，最多重试一次
+    let retries = 0;
+    const maxRetries = 1; // 减少重试次数
+    
+    while (retries <= maxRetries) {
+      try {
+        const response = await fetch(url);
+        if (response.ok) {
+          const data = await response.json();
+          return data;
+        } else {
+          // 对于404错误，直接标记为失败并返回，不重试
+          if (response.status === 404) {
+            console.warn(`Resource not found at URL: ${url}`);
+            failedDataUrls.add(url);
+            return { paragraphs: [] };
+          }
+          
+          // 如果是最后一次重试，记录错误并返回空数据
+          if (retries === maxRetries) {
+            console.error(`Failed to fetch ${config.name} data after ${maxRetries} retries: ${response.status} ${response.statusText} for URL: ${url}`);
+            failedDataUrls.add(url);
+            return { paragraphs: [] };
+          }
+          // 否则继续重试
+          console.warn(`Retry ${retries + 1}/${maxRetries} for URL: ${url}`);
+          retries++;
+          // 添加短暂延迟再重试
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      } catch (error) {
+        // 如果是最后一次重试，记录错误并返回空数据
+        if (retries === maxRetries) {
+          console.error(`Error fetching ${config.name} data after ${maxRetries} retries:`, error);
+          failedDataUrls.add(url);
+          return { paragraphs: [] };
+        }
+        // 否则继续重试
+        console.warn(`Retry ${retries + 1}/${maxRetries} after error for URL: ${url}`);
+        retries++;
+        // 添加短暂延迟再重试
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+    }
+    
+    // 这里不应该到达，但为了类型安全添加默认返回
+    return { paragraphs: [] };
   } catch (error) {
-    console.error(`Error fetching ${config.name} data:`, error);
+    console.error(`Unexpected error fetching ${config.name} data:`, error);
     return { paragraphs: [] }; // Return empty data structure on error
   }
 }
 
 // 通用函数：处理JSON数据为BilingualContent对象
-async function processBookData(config: BookConfig): Promise<BilingualContent[]> {
+async function processBookData(config: BookConfig, part?: number, chapter?: number): Promise<BilingualContent[]> {
   const content: BilingualContent[] = [];
   
   // 获取数据
-  const bookData = await fetchBookData(config);
+  const bookData = await fetchBookData(config, part, chapter);
   
   // 检查数据格式
   if (!bookData.paragraphs) {
@@ -54,8 +117,13 @@ async function processBookData(config: BookConfig): Promise<BilingualContent[]> 
   bookData.paragraphs.forEach((paragraph: { id: string; source: string; translation: string }) => {
     // 确保段落有source和translation字段
     if (paragraph.source && paragraph.translation) {
+      // 如果使用分割文件，则使用正确的ID格式
+      const id = config.useSplitFiles && part && chapter
+        ? `${config.id}-${part}-${chapter}-${paragraph.id}`
+        : `${config.id}-1-${paragraph.id}`;
+        
       content.push({
-        id: `${config.id}-1-${paragraph.id}`, // 使用段落的id
+        id: id,
         english: paragraph.source, // 英文原文
         chinese: paragraph.translation, // 中文翻译
       });
@@ -67,6 +135,48 @@ async function processBookData(config: BookConfig): Promise<BilingualContent[]> 
 
 // 通用函数：构建章节内容
 async function createBookChapters(config: BookConfig): Promise<Chapter[]> {
+  // 创建章节
+  const chapters: Chapter[] = [];
+  
+  // 如果使用分割文件，则不在此处加载所有章节，而是返回章节元数据
+  if (config.useSplitFiles) {
+    // 定义各部分章节数
+    const partStructure: Record<number, number> = {
+      1: 9,  // 第一部分有9章
+      2: 15, // 第二部分有15章
+      3: 11  // 第三部分有11章
+    };
+    
+    // 从配置中提取bookId
+    const bookId = config.id;
+    
+    // 计算累积章节编号
+    let cumulativeChapterNumber = 0;
+    
+    // 为每个部分和章节创建章节元数据对象 (不加载内容)
+    for (let part = 1; part <= 3; part++) {
+      const maxChapters = partStructure[part] || 0;
+      
+      // 为每个章节创建章节元数据对象
+      for (let chapter = 1; chapter <= maxChapters; chapter++) {
+        cumulativeChapterNumber++;
+        
+        // 创建章节对象，但不加载内容
+        chapters.push({
+          id: `${bookId}-${part}-${chapter}`,
+          bookId: bookId,
+          chapterNumber: cumulativeChapterNumber,
+          title: `Part ${part}, Chapter ${chapter}`,
+          content: [] // 空内容，稍后按需加载
+        });
+      }
+    }
+    
+    console.log(`Created ${chapters.length} chapter metadata objects for ${config.name} without loading content`);
+    return chapters;
+  }
+  
+  // 原始逻辑：使用单一文件
   const allContent = await processBookData(config);
 
   // 定义各部分章节数
@@ -195,8 +305,7 @@ async function createBookChapters(config: BookConfig): Promise<Chapter[]> {
     markerIndices.part3Ch11 = findChapterInPart(chapterMarkers.chapterEleven, markerIndices.partIII, allContent.length);
   }
   
-  // 创建章节
-  const chapters: Chapter[] = [];
+  // 已在函数开始处创建了章节数组
   
   // 创建第一部分的章节
   for (let i = 1; i <= partStructure.part1; i++) {
@@ -412,9 +521,272 @@ async function createBookChapters(config: BookConfig): Promise<Chapter[]> {
   return chapters;
 }
 
-// Instead of exporting a static array, export a function to get chapters
+// Cache for chapters and chapter metadata
 let cachedChapters: Chapter[] | null = null;
+let cachedChapterMetadata: Record<string, Chapter[]> = {};
 
+// Cache to track in-progress chapter loading to prevent duplicate requests
+const loadingChapters: Record<string, Promise<Chapter | null>> = {};
+
+// Function to get a single chapter by bookId and chapterNumber
+export async function getChapter(bookId: string, chapterNumber: number): Promise<Chapter | null> {
+  const cacheKey = `${bookId}-${chapterNumber}`;
+  
+  // If this chapter is already being loaded, return the existing promise
+  if (cacheKey in loadingChapters) {
+    console.log(`Loading of chapter ${bookId}-${chapterNumber} already in progress, reusing request`);
+    return loadingChapters[cacheKey];
+  }
+  
+  // Create a loading promise and store it
+  loadingChapters[cacheKey] = (async () => {
+    try {
+      // Check if we have the chapter in cache already with content
+      if (cachedChapters) {
+        const cachedChapter = cachedChapters.find(
+          chapter => chapter.bookId === bookId && 
+                    chapter.chapterNumber === chapterNumber && 
+                    chapter.content && 
+                    chapter.content.length > 0
+        );
+        if (cachedChapter) {
+          console.log(`Using cached chapter ${bookId}-${chapterNumber} with ${cachedChapter.content.length} paragraphs`);
+          return cachedChapter;
+        } else {
+          console.log(`Found cached chapter ${bookId}-${chapterNumber} but it has no content, will reload`);
+        }
+      }
+      
+      // Find the book config
+      const bookConfig = BOOK_CONFIGS.find(config => config.id === bookId);
+      if (!bookConfig) {
+        console.error(`Book config not found for ID: ${bookId}`);
+        return null;
+      }
+      
+      // For split files, we can load just the specific chapter
+      if (bookConfig.useSplitFiles) {
+        // Calculate part and chapter based on chapterNumber
+        // Define parts structure
+        const partStructure: Record<number, number> = {
+          1: 9,  // 第一部分有9章
+          2: 15, // 第二部分有15章
+          3: 11  // 第三部分有11章
+        };
+        
+        // Calculate the correct part and chapter within that part
+        let part = 1;
+        let chapterInPart = chapterNumber;
+        
+        // For Madame Bovary (bookId 8), we have a specific structure
+        if (bookId === '8') {
+          if (chapterNumber <= 9) {
+            part = 1;
+            chapterInPart = chapterNumber; // Part 1: Chapters 1-9
+          } else if (chapterNumber <= 24) {
+            part = 2;
+            chapterInPart = chapterNumber - 9; // Part 2: Chapters 10-24 (1-15 within part 2)
+          } else {
+            part = 3;
+            chapterInPart = chapterNumber - 24; // Part 3: Chapters 25-35 (1-11 within part 3)
+          }
+          
+          console.log(`Mapped absolute chapter ${chapterNumber} to Part ${part}, Chapter ${chapterInPart}`);
+        } else {
+          // For other books, use a more generic approach
+          let cumulativeChapters = 0;
+          
+          for (let p = 1; p <= 3; p++) {
+            if (chapterNumber <= cumulativeChapters + partStructure[p]) {
+              part = p;
+              chapterInPart = chapterNumber - cumulativeChapters;
+              break;
+            }
+            cumulativeChapters += partStructure[p];
+          }
+        }
+        
+        console.log(`Loading chapter ${chapterNumber} (Part ${part}, Chapter ${chapterInPart}) for book ${bookId}`);
+        
+        // Get content for this specific chapter only
+        const content = await fetchBookData(bookConfig, part, chapterInPart)
+          .then(bookData => {
+            // Process only this chapter's data
+            if (!bookData.paragraphs) {
+              console.error(`Invalid ${bookConfig.name} data format: paragraphs array not found`);
+              return [];
+            }
+            
+            return bookData.paragraphs.map((paragraph: { id: string; source: string; translation: string }) => {
+              // Ensure paragraph has source and translation fields
+              if (paragraph.source && paragraph.translation) {
+                const id = `${bookId}-${part}-${chapterInPart}-${paragraph.id}`;
+                return {
+                  id: id,
+                  english: paragraph.source,
+                  chinese: paragraph.translation,
+                };
+              }
+              return null;
+            }).filter(Boolean) as BilingualContent[];
+          });
+        
+        if (content.length > 0) {
+          // Create the chapter
+          const chapter: Chapter = {
+            id: `${bookId}-${part}-${chapterInPart}`,
+            bookId: bookId,
+            chapterNumber: chapterNumber,
+            title: `Part ${part}, Chapter ${chapterInPart}`,
+            content: content
+          };
+          
+          // Cache this chapter if we have a cache
+          if (cachedChapters) {
+            // Check if this chapter already exists in cache
+            const existingIndex = cachedChapters.findIndex(
+              c => c.bookId === bookId && c.chapterNumber === chapterNumber
+            );
+            
+            if (existingIndex >= 0) {
+              // Replace existing chapter
+              cachedChapters[existingIndex] = chapter;
+            } else {
+              // Add new chapter to cache
+              cachedChapters.push(chapter);
+            }
+          }
+          
+          return chapter;
+        }
+      } else {
+        // For non-split files, we need to get all chapters and find the one we want
+        // This is less efficient but maintains compatibility with older format
+        console.log(`Loading all chapters for non-split file book ${bookId} to find chapter ${chapterNumber}`);
+        const allChapters = await getChapters();
+        return allChapters.find(chapter => chapter.bookId === bookId && chapter.chapterNumber === chapterNumber) || null;
+      }
+      
+      // If we get here, we couldn't find the chapter
+      console.error(`Chapter ${chapterNumber} not found for book ${bookId}`);
+      return null;
+    } catch (error) {
+      console.error(`Error loading chapter ${chapterNumber} for book ${bookId}:`, error);
+      return null;
+    } finally {
+      // Remove from loading cache once done (either success or failure)
+      delete loadingChapters[cacheKey];
+    }
+  })();
+  
+  return loadingChapters[cacheKey];
+}
+
+// Function to get chapter metadata for a specific book without loading content
+export async function getChapterMetadata(bookId: string): Promise<Chapter[]> {
+  // Check if we have cached metadata for this book
+  if (cachedChapterMetadata[bookId] && cachedChapterMetadata[bookId].length > 0) {
+    return cachedChapterMetadata[bookId];
+  }
+  
+  // Find the book config
+  const bookConfig = BOOK_CONFIGS.find(config => config.id === bookId);
+  if (!bookConfig) {
+    console.error(`Book config not found for ID: ${bookId}`);
+    return [];
+  }
+  
+  // For split files, we can generate metadata without loading content
+  if (bookConfig.useSplitFiles) {
+    const chapterMetadata: Chapter[] = [];
+    
+    // Define parts structure
+    const partStructure: Record<number, number> = {
+      1: 9,  // 第一部分有9章
+      2: 15, // 第二部分有15章
+      3: 11  // 第三部分有11章
+    };
+    
+    // Generate metadata for each part and chapter
+    if (bookId === '8') { // Special case for Madame Bovary
+      // Part 1: Chapters 1-9
+      for (let chapter = 1; chapter <= partStructure[1]; chapter++) {
+        const absoluteChapterNumber = chapter; // In part 1, chapter numbers align with absolute numbering
+        chapterMetadata.push({
+          id: `${bookId}-1-${chapter}`,
+          bookId: bookId,
+          chapterNumber: absoluteChapterNumber,
+          title: `Part 1, Chapter ${chapter}`,
+          content: [] // Empty content array for metadata
+        });
+      }
+      
+      // Part 2: Chapters 1-15 (maps to absolute chapters 10-24)
+      for (let chapter = 1; chapter <= partStructure[2]; chapter++) {
+        const absoluteChapterNumber = chapter + partStructure[1]; // Add Part 1 chapters to get absolute number
+        chapterMetadata.push({
+          id: `${bookId}-2-${chapter}`,
+          bookId: bookId,
+          chapterNumber: absoluteChapterNumber,
+          title: `Part 2, Chapter ${chapter}`,
+          content: [] // Empty content array for metadata
+        });
+      }
+      
+      // Part 3: Chapters 1-11 (maps to absolute chapters 25-35)
+      for (let chapter = 1; chapter <= partStructure[3]; chapter++) {
+        const absoluteChapterNumber = chapter + partStructure[1] + partStructure[2]; // Add Part 1+2 chapters
+        chapterMetadata.push({
+          id: `${bookId}-3-${chapter}`,
+          bookId: bookId,
+          chapterNumber: absoluteChapterNumber,
+          title: `Part 3, Chapter ${chapter}`,
+          content: [] // Empty content array for metadata
+        });
+      }
+      
+      console.log(`Generated ${chapterMetadata.length} chapter metadata entries for book ${bookId}`);
+    } else {
+      // For other books, use a simpler approach
+      let absoluteChapterNumber = 1;
+      
+      for (let part = 1; part <= 3; part++) {
+        const maxChapters = partStructure[part] || 0;
+        
+        for (let chapter = 1; chapter <= maxChapters; chapter++) {
+          chapterMetadata.push({
+            id: `${bookId}-${part}-${chapter}`,
+            bookId: bookId,
+            chapterNumber: absoluteChapterNumber++,
+            title: `Part ${part}, Chapter ${chapter}`,
+            content: [] // Empty content array for metadata
+          });
+        }
+      }
+    }
+    
+    // Cache the metadata
+    cachedChapterMetadata[bookId] = chapterMetadata;
+    return chapterMetadata;
+  }
+  
+  // For non-split files, we need to get all chapters and filter
+  // This is less efficient but maintains compatibility
+  const allChapters = await getChapters();
+  const bookChapters = allChapters.filter(chapter => chapter.bookId === bookId);
+  
+  // Create metadata versions (without content)
+  const chapterMetadata = bookChapters.map(chapter => ({
+    ...chapter,
+    content: [] // Replace content with empty array
+  }));
+  
+  // Cache the metadata
+  cachedChapterMetadata[bookId] = chapterMetadata;
+  return chapterMetadata;
+}
+
+// Function to get all chapters with full content
 export async function getChapters(): Promise<Chapter[]> {
   if (cachedChapters && cachedChapters.length > 0) {
     return cachedChapters;

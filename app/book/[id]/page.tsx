@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { books } from '../../data/books';
-import { getChapters } from '../../data/chapters';
+import { getChapterMetadata } from '../../data/chapters';
 import BookCoverPlaceholder from '../../components/BookCoverPlaceholder';
 import { Metadata } from 'next';
 import { Chapter } from '../../types';
@@ -36,15 +36,13 @@ export default async function BookDetail({
   const { id } = await params;
   const book = books.find((b) => b.id === id);
   
-  // Add error handling and debugging for chapter fetching
-  let chapters: Chapter[] = [];
+  // Only fetch chapter metadata for the book list page
   let bookChapters: Chapter[] = [];
   try {
-    chapters = await getChapters();
-
-    bookChapters = chapters.filter((c) => c.bookId === id);
+    // getChapterMetadata only fetches basic chapter info without content
+    bookChapters = await getChapterMetadata(id);
   } catch (error) {
-    console.error('Error fetching or filtering chapters:', error);
+    console.error('Error fetching chapter metadata:', error);
   }
   
   if (!book) {

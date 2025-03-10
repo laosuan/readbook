@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { books } from '../../../data/books';
-import { getChapters } from '../../../data/chapters';
+import { getChapter } from '../../../data/chapters';
 import { Book, Chapter } from '../../../types';
 import BilingualReader from '../../../components/BilingualReader';
 import LoadingSpinner from '../../../components/LoadingSpinner';
@@ -32,16 +32,13 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string;
         if (foundBook) {
           setBook(foundBook);
           
-          // Get chapters and find the current chapter
-          const allChapters = await getChapters();
-          
-          // Find the chapter by number
+          // Get the specific chapter directly without loading all chapters
           const chapterNumber = parseInt(chapterId, 10);
-          const foundChapter = allChapters.find(
-            (c) => c.bookId === bookId && c.chapterNumber === chapterNumber
-          );
+          console.log(`ReadPage: Loading chapter ${bookId}-${chapterNumber}`);
+          const foundChapter = await getChapter(bookId, chapterNumber);
         
-          if (foundChapter) {
+          if (foundChapter && foundChapter.content && foundChapter.content.length > 0) {
+            console.log(`ReadPage: Successfully loaded chapter ${bookId}-${chapterNumber} with ${foundChapter.content.length} paragraphs`);
             setChapter(foundChapter);
             
             // Set previous and next chapter links
@@ -57,6 +54,7 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string;
               setNextChapter(null);
             }
           } else {
+            console.error(`ReadPage: Chapter ${bookId}-${chapterNumber} was found but has no content`);
             setNotFound(true);
           }
         } else {

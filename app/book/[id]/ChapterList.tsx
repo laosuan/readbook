@@ -19,8 +19,8 @@ export default function ChapterList({ bookId, initialChapters }: { bookId: strin
     const fetchChapters = async () => {
       try {
         setLoading(true);
-        // Fetch chapters from API
-        const response = await fetch(`/api/chapters?bookId=${bookId}`);
+        // Fetch only chapter metadata from API (no content needed for chapter list)
+        const response = await fetch(`/api/chapters?bookId=${bookId}&includeContent=false`);
         if (!response.ok) {
           throw new Error('Failed to fetch chapters');
         }

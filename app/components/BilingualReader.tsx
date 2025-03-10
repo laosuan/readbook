@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { BilingualContent } from '../types';
 import { KeyWord, getVocabularyForParagraph, highlightText } from '../data/vocabulary';
 
@@ -83,24 +83,87 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
     };
   }, [showVocabulary, bookId]);
 
+  // Extract chapter information from content to limit vocabulary requests to current chapter only
+  const currentChapterInfo = useMemo(() => {
+    if (!content || content.length === 0 || !(bookId === '8')) return null;
+    
+    // Get the first paragraph ID to extract part and chapter
+    const firstParagraphId = content[0]?.id;
+    if (!firstParagraphId) return null;
+    
+    const idParts = firstParagraphId.split('-');
+    if (idParts.length < 4) return null;
+    
+    return {
+      part: idParts[1],
+      chapter: idParts[2]
+    };
+  }, [content, bookId]);
+
   // Update vocabulary items when visible paragraphs change
   useEffect(() => {
-    if (!showVocabulary || !(bookId === '8')) {
-      setVocabularyItems({});
+    if (!showVocabulary || !(bookId === '8') || !currentChapterInfo) {
       return;
     }
     
-    const newVocabularyItems: {[key: string]: KeyWord[]} = {};
+    // Use a debounce timer to avoid excessive API calls
+    let debounceTimer: NodeJS.Timeout | null = null;
     
-    visibleParagraphs.forEach(paragraphId => {
-      const vocab = getVocabularyForParagraph(paragraphId);
-      if (vocab.length > 0) {
-        newVocabularyItems[paragraphId] = vocab;
+    const fetchVocabulary = async () => {
+      // Keep existing vocabulary items
+      const newVocabularyItems = {...vocabularyItems};
+      
+      // Get only paragraphs that aren't already loaded and belong to the current chapter
+      const paragraphsToFetch = Array.from(visibleParagraphs).filter(paragraphId => {
+        // Skip if already loaded
+        if (newVocabularyItems[paragraphId]) return false;
+        
+        // Verify paragraph belongs to current chapter
+        const idParts = paragraphId.split('-');
+        if (idParts.length < 4) return false;
+        
+        const paragraphPart = idParts[1];
+        const paragraphChapter = idParts[2];
+        
+        return paragraphPart === currentChapterInfo.part && 
+               paragraphChapter === currentChapterInfo.chapter;
+      });
+      
+      // If no new paragraphs to fetch, exit early
+      if (paragraphsToFetch.length === 0) return;
+      
+      console.log(`Fetching vocabulary for ${paragraphsToFetch.length} new paragraphs in chapter ${currentChapterInfo.part}-${currentChapterInfo.chapter}`);
+      
+      // Process each new visible paragraph
+      for (const paragraphId of paragraphsToFetch) {
+        try {
+          const vocab = await getVocabularyForParagraph(paragraphId);
+          if (vocab.length > 0) {
+            newVocabularyItems[paragraphId] = vocab;
+          }
+        } catch (error) {
+          console.error(`Error fetching vocabulary for ${paragraphId}:`, error);
+        }
       }
-    });
+      
+      setVocabularyItems(newVocabularyItems);
+    };
     
-    setVocabularyItems(newVocabularyItems);
-  }, [visibleParagraphs, showVocabulary, bookId]);
+    // Clear any existing timer
+    if (debounceTimer) {
+      clearTimeout(debounceTimer);
+    }
+    
+    // Set a new timer to delay the fetch
+    debounceTimer = setTimeout(fetchVocabulary, 500);
+    
+    // Cleanup the timer on unmount
+    return () => {
+      if (debounceTimer) {
+        clearTimeout(debounceTimer);
+      }
+    };
+  }, [visibleParagraphs, showVocabulary, bookId, vocabularyItems, currentChapterInfo]);
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -150,7 +213,8 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
           {content.map((item) => {
             // Only load vocabulary for bookId 8
             const isVocabBook = bookId === '8';
-            const vocabulary = isVocabBook && showVocabulary ? getVocabularyForParagraph(item.id) : [];
+            // Use vocabulary from state instead of fetching it directly
+            const vocabulary = isVocabBook && showVocabulary ? vocabularyItems[item.id] || [] : [];
             const hasVocabulary = vocabulary.length > 0;
             // const isVisible = visibleParagraphs.has(item.id); // Removed unused variable
             
@@ -179,7 +243,7 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
         {/* Fixed Vocabulary sidebar */}
         {showVocabulary && Object.keys(vocabularyItems).length > 0 && (
           <div className="w-64 shrink-0 border-l border-secondary-200 dark:border-secondary-800 pl-6 ml-2 sticky top-8 max-h-screen overflow-y-auto pb-8">
-            <h3 className="text-lg font-medium mb-3 text-secondary-900 dark:text-secondary-100 sticky top-0 bg-white dark:bg-secondary-950 py-2">重点词汇</h3>
+            <h3 className="text-lg font-medium mb-3 text-secondary-900 dark:text-secondary-100 sticky top-0 border-secondary-200  dark:bg-secondary-950 py-2">重点词汇</h3>
             <div className="space-y-4">
               {Object.entries(vocabularyItems).map(([paragraphId, words]) => (
                 <div key={paragraphId} className="border-b border-secondary-200 dark:border-secondary-800 pb-3">

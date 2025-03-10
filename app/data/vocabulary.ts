@@ -1,4 +1,5 @@
-import vocabularyData from './vocabulary_data.json';
+// Define CDN base URL for vocabulary files
+const CDN_BASE_URL = 'https://cdn.readwordly.com/MadameBovary/20250310/';
 import React, { ReactNode } from 'react';
 
 export interface KeyWord {
@@ -23,24 +24,128 @@ export interface VocabularyData {
   vocabulary: VocabularyItem[];
 }
 
+// Default empty vocabulary data structure
+const emptyVocabularyData: VocabularyData = {
+  title: 'Madame Bovary',
+  author: 'Gustave Flaubert',
+  language: {
+    source: 'English',
+    target: 'Chinese'
+  },
+  vocabulary: []
+};
+
 // Function to get vocabulary data for a specific book
-export function getVocabularyData(): VocabularyData {
-  return vocabularyData as VocabularyData;
+// This function now only returns the empty structure since we're only using split files
+export async function getVocabularyData(): Promise<VocabularyData> {
+  return emptyVocabularyData;
 }
 
+// Cache for part-chapter vocabulary data
+const vocabularyCache: Record<string, VocabularyItem[]> = {};
+
+// Cache to track failed vocabulary requests to avoid repeated attempts
+const failedVocabularyRequests: Set<string> = new Set();
+
 // Function to get vocabulary for a specific paragraph by ID
-export function getVocabularyForParagraph(paragraphId: string): KeyWord[] {
+export async function getVocabularyForParagraph(paragraphId: string): Promise<KeyWord[]> {
   try {
-    // Extract the numeric ID from the paragraph ID (format: bookId-part-chapter-paragraphId)
+    // Extract parts from the paragraph ID (format: bookId-part-chapter-paragraphId)
     const idParts = paragraphId.split('-');
-    const numericId = parseInt(idParts[idParts.length - 1], 10);
     
-    // Find the vocabulary item with the matching ID
-    const vocabItem = (vocabularyData as VocabularyData).vocabulary.find(
-      item => item.id === numericId
-    );
-    
-    return vocabItem?.key_words || [];
+    // Check if we have enough parts to determine part and chapter
+    if (idParts.length >= 4) {
+      const part = idParts[1];
+      const chapter = idParts[2];
+      const numericId = parseInt(idParts[3], 10);
+      
+      // Create a cache key for this part-chapter combination
+      const cacheKey = `${part}-${chapter}`;
+      
+      // If we've already tried and failed to fetch this vocabulary, don't try again
+      if (failedVocabularyRequests.has(cacheKey)) {
+        return [];
+      }
+      
+      // Check if we have this part-chapter data in cache
+      if (!vocabularyCache[cacheKey]) {
+        try {
+          // Try to fetch the vocabulary data for this part-chapter from CDN
+          // The file naming pattern is vocabulary_part-chapter.json
+          const url = `${CDN_BASE_URL}vocabulary_${part}-${chapter}.json`;
+          console.log(`Fetching vocabulary data from: ${url}`);
+          
+          // Implement retry logic with a maximum of 1 retry
+          let retries = 0;
+          const maxRetries = 1;
+          
+          while (retries <= maxRetries) {
+            try {
+              const response = await fetch(url);
+              
+              if (response.ok) {
+                const data = await response.json();
+                if (data && data.vocabulary) {
+                  vocabularyCache[cacheKey] = data.vocabulary;
+                  break; // Success, exit the retry loop
+                } else {
+                  console.warn(`Invalid vocabulary data format for ${part}-${chapter}`);
+                  vocabularyCache[cacheKey] = [];
+                  failedVocabularyRequests.add(cacheKey);
+                  break;
+                }
+              } else {
+                // If not found (404), mark as failed and don't retry
+                if (response.status === 404) {
+                  console.warn(`Vocabulary data not found for ${part}-${chapter}`);
+                  vocabularyCache[cacheKey] = [];
+                  failedVocabularyRequests.add(cacheKey);
+                  break;
+                }
+                
+                // For other errors, retry if we haven't reached max retries
+                if (retries === maxRetries) {
+                  console.warn(`Failed to fetch vocabulary data for ${part}-${chapter} after ${maxRetries} retries`);
+                  vocabularyCache[cacheKey] = [];
+                  failedVocabularyRequests.add(cacheKey);
+                  break;
+                }
+                
+                console.warn(`Retry ${retries + 1}/${maxRetries} for vocabulary ${part}-${chapter}`);
+                retries++;
+                // Add a short delay before retrying
+                await new Promise(resolve => setTimeout(resolve, 500));
+              }
+            } catch (error) {
+              // For network errors, retry if we haven't reached max retries
+              if (retries === maxRetries) {
+                console.error(`Error fetching vocabulary data for ${part}-${chapter} after ${maxRetries} retries:`, error);
+                vocabularyCache[cacheKey] = [];
+                failedVocabularyRequests.add(cacheKey);
+                break;
+              }
+              
+              console.warn(`Retry ${retries + 1}/${maxRetries} after error for vocabulary ${part}-${chapter}`);
+              retries++;
+              // Add a short delay before retrying
+              await new Promise(resolve => setTimeout(resolve, 500));
+            }
+          }
+        } catch (error) {
+          console.error(`Unexpected error fetching vocabulary data for ${part}-${chapter}:`, error);
+          vocabularyCache[cacheKey] = [];
+          failedVocabularyRequests.add(cacheKey);
+        }
+      }
+      
+      // Find the vocabulary item with the matching ID in the cached data
+      const vocabItem = vocabularyCache[cacheKey]?.find(item => item.id === numericId);
+      return vocabItem?.key_words || [];
+    } else {
+      // For old format IDs, we won't attempt to load from the full vocabulary file
+      console.warn(`Invalid paragraph ID format: ${paragraphId}`);
+      return [];
+    }
   } catch (error) {
     console.error('Error getting vocabulary for paragraph:', error);
     return [];
