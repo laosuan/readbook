@@ -156,7 +156,7 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string;
           </nav>
         </div>
         
-        <BilingualReader content={chapter.content} chapterTitle={chapter.title} />
+        <BilingualReader content={chapter.content} chapterTitle={chapter.title} bookId={book.id} />
         
         <div className="mt-8 flex justify-between">
           {prevChapter ? (
