@@ -57,20 +57,25 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
     };
 
     const observer = new IntersectionObserver((entries) => {
+      let visibilityChanged = false;
+      const updatedVisibleParagraphs = new Set(visibleParagraphs);
+      
       entries.forEach(entry => {
         const paragraphId = entry.target.getAttribute('data-paragraph-id');
         if (!paragraphId) return;
         
-        setVisibleParagraphs(prev => {
-          const newSet = new Set(prev);
-          if (entry.isIntersecting) {
-            newSet.add(paragraphId);
-          } else {
-            newSet.delete(paragraphId);
-          }
-          return newSet;
-        });
+        if (entry.isIntersecting && !updatedVisibleParagraphs.has(paragraphId)) {
+          updatedVisibleParagraphs.add(paragraphId);
+          visibilityChanged = true;
+        } else if (!entry.isIntersecting && updatedVisibleParagraphs.has(paragraphId)) {
+          updatedVisibleParagraphs.delete(paragraphId);
+          visibilityChanged = true;
+        }
       });
+      
+      if (visibilityChanged) {
+        setVisibleParagraphs(updatedVisibleParagraphs);
+      }
     }, observerOptions);
 
     // Observe all paragraph elements
@@ -245,17 +250,20 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
           <div className="w-64 shrink-0 border-l border-secondary-200 dark:border-secondary-800 pl-6 ml-2 sticky top-8 max-h-screen overflow-y-auto pb-8">
             <h3 className="text-lg font-medium mb-3 text-secondary-900 dark:text-secondary-100 sticky top-0 border-secondary-200  dark:bg-secondary-950 py-2">重点词汇</h3>
             <div className="space-y-4">
-              {Object.entries(vocabularyItems).map(([paragraphId, words]) => (
-                <div key={paragraphId} className="border-b border-secondary-200 dark:border-secondary-800 pb-3">
-                  <ul className="space-y-2">
-                    {words.map((word, index) => (
-                      <li key={index} className="p-2 bg-secondary-50 dark:bg-secondary-800 rounded">
-                        <div className="font-medium text-secondary-900 dark:text-secondary-100">{word.raw_en} - {word.raw_cn}</div>
-                        <div className="text-sm text-secondary-600 dark:text-secondary-400">{word.en} - {word.cn}</div>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+              {/* Filter vocabulary to only show words from visible paragraphs */}
+              {Object.entries(vocabularyItems)
+                .filter(([paragraphId]) => visibleParagraphs.has(paragraphId))
+                .map(([paragraphId, words]) => (
+                  <div key={paragraphId} className="border-b border-secondary-200 dark:border-secondary-800 pb-3">
+                    <ul className="space-y-2">
+                      {words.map((word, index) => (
+                        <li key={index} className="p-2 bg-secondary-50 dark:bg-secondary-800 rounded">
+                          <div className="font-medium text-secondary-900 dark:text-secondary-100">{word.raw_en} - {word.raw_cn}</div>
+                          <div className="text-sm text-secondary-600 dark:text-secondary-400">{word.en} - {word.cn}</div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
               ))}
             </div>
           </div>
