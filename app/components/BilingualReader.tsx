@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { BilingualContent } from '../types';
 import { KeyWord, getVocabularyForParagraph, highlightText } from '../data/vocabulary';
 
@@ -18,6 +18,15 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
   const [visibleParagraphs, setVisibleParagraphs] = useState<Set<string>>(new Set());
   const paragraphRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const [vocabularyItems, setVocabularyItems] = useState<{[key: string]: KeyWord[]}>({});
+  
+  // TTS state variables
+  const [isPlaying, setIsPlaying] = useState<boolean>(false);
+  const [currentParagraphId, setCurrentParagraphId] = useState<string | null>(null);
+  const [currentParagraphIndex, setCurrentParagraphIndex] = useState<number | null>(null);
+  const [hoverParagraphId, setHoverParagraphId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
 
   const increaseFontSize = () => {
     if (fontSize < 24) {
@@ -45,6 +54,192 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
   const toggleVocabulary = () => {
     setShowVocabulary(!showVocabulary);
   };
+
+  // Initialize Audio Context
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      // Create audio element for playback
+      if (!audioRef.current) {
+        audioRef.current = new Audio();
+        
+        // Set up event listeners for the audio element
+        audioRef.current.onended = () => {
+          // When current audio ends, move to next paragraph if playing
+          if (isPlaying && currentParagraphIndex !== null) {
+            const nextIndex = currentParagraphIndex + 1;
+            if (nextIndex < content.length) {
+              const nextParagraph = content[nextIndex];
+              playTTS(nextParagraph.id);
+            } else {
+              // End of content
+              stopTTS();
+            }
+          }
+        };
+      }
+      
+      // Initialize audio context for potential audio processing
+      if (!audioContextRef.current) {
+        try {
+          const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+          audioContextRef.current = new AudioContext();
+        } catch (error) {
+          console.error('Could not create AudioContext:', error);
+        }
+      }
+    }
+    
+    return () => {
+      stopTTS();
+      // Clean up audio resources
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.src = '';
+      }
+    };
+  }, [content.length, currentParagraphIndex, isPlaying]);
+  
+  // Function to get all paragraph text content
+  const getAllParagraphsEnglishContent = useCallback(() => {
+    const allContent: { id: string; text: string }[] = [];
+    content.forEach((item, index) => {
+      allContent.push({ id: item.id, text: item.english });
+    });
+    return allContent;
+  }, [content]);
+  
+  // Play TTS for a specific paragraph
+  const playTTS = useCallback(async (paragraphId: string) => {
+    if (!audioRef.current) return;
+    
+    // Stop any current playback
+    stopTTS();
+    
+    // Find the index of the paragraph to start from
+    const paragraphIndex = content.findIndex(item => item.id === paragraphId);
+    if (paragraphIndex === -1) return;
+    
+    const paragraphText = content[paragraphIndex].english;
+    if (!paragraphText) return;
+    
+    setCurrentParagraphId(paragraphId);
+    setCurrentParagraphIndex(paragraphIndex);
+    setIsPlaying(true);
+    setIsLoading(true);
+    
+    try {
+      // Scroll to the paragraph being read
+      const paragraphElement = paragraphRefs.current.get(paragraphId);
+      if (paragraphElement) {
+        paragraphElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      
+      // Get audio from server-side TTS API
+      console.log('Requesting TTS for text:', paragraphText.substring(0, 50) + (paragraphText.length > 50 ? '...' : ''));
+      
+      try {
+        const response = await fetch('/api/tts', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            text: paragraphText,
+            voice: 'en-US-AriaNeural' // Default voice
+          }),
+        });
+        
+        // Check for HTTP errors
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('TTS API HTTP error:', response.status, errorText);
+          throw new Error(`TTS API error (${response.status}): ${errorText || 'No error details available'}`);
+        }
+        
+        // Parse response data
+        const data = await response.json();
+        console.log('TTS API response received', data ? 'with data' : 'with empty data');
+        
+        // Validate audio data exists
+        if (!data || !data.audio) {
+          console.error('TTS API response missing audio data:', data);
+          throw new Error('No audio data received from TTS API');
+        }
+        
+        // Create audio source from base64 data
+        const audioSrc = `data:audio/mp3;base64,${data.audio}`;
+        console.log('Audio source created, length:', data.audio.length);
+        
+        // Set up audio playback
+        if (audioRef.current) {
+          audioRef.current.src = audioSrc;
+          console.log('Starting audio playback');
+          
+          await audioRef.current.play()
+            .catch(error => {
+              console.error('Audio playback error:', error);
+              throw new Error(`Audio playback failed: ${error.message}`);
+            });
+            
+          console.log('Audio playback started successfully');
+        } else {
+          console.error('Audio element reference is not available');
+          throw new Error('Audio player not available');
+        }
+      } catch (error) {
+        console.error('TTS request or playback error:', error);
+        // Re-throw the error to be caught by the outer catch block
+        throw error;
+      } finally {
+        setIsLoading(false);
+      }
+    } catch (error) {
+      console.error('TTS error:', error);
+      setIsLoading(false);
+      stopTTS();
+      
+      // Show error message to the user
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      alert(`Speech synthesis failed: ${errorMessage}. Please try again later.`);
+    }
+  }, [content]);
+  
+  // These functions are no longer needed with the server-side approach
+  // The audio element's 'onended' event handles moving to the next paragraph
+  
+  // Pause TTS
+  const pauseTTS = useCallback(() => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      setIsPlaying(false);
+    }
+  }, []);
+  
+  // Resume TTS
+  const resumeTTS = useCallback(() => {
+    if (audioRef.current && audioRef.current.src) {
+      audioRef.current.play().catch(error => {
+        console.error('Error resuming audio:', error);
+      });
+      setIsPlaying(true);
+    } else if (currentParagraphId) {
+      // If we can't resume, restart from current paragraph
+      playTTS(currentParagraphId);
+    }
+  }, [currentParagraphId, playTTS]);
+  
+  // Stop TTS completely
+  const stopTTS = useCallback(() => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
+    
+    setIsPlaying(false);
+    setCurrentParagraphId(null);
+    setCurrentParagraphIndex(null);
+    setIsLoading(false);
+  }, []);
 
   // Set up intersection observer to track visible paragraphs
   useEffect(() => {
@@ -204,6 +399,29 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
     };
   }, [visibleParagraphs, showVocabulary, bookId, vocabularyItems, currentChapterInfo]);
 
+  // Add CSS for the pulse animation
+  useEffect(() => {
+    // Add the CSS animation for the current paragraph indicator
+    if (typeof document !== 'undefined') {
+      const style = document.createElement('style');
+      style.textContent = `
+        @keyframes pulse {
+          0% { opacity: 0.6; }
+          50% { opacity: 1; }
+          100% { opacity: 0.6; }
+        }
+        .pulse-animation {
+          animation: pulse 2s infinite ease-in-out;
+        }
+      `;
+      document.head.appendChild(style);
+      
+      return () => {
+        document.head.removeChild(style);
+      };
+    }
+  }, []);
+  
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="mb-6 flex justify-between items-center">
@@ -230,6 +448,51 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
               </svg>
             </button>
           </div>
+          
+          {/* Play/Pause/Stop TTS button group */}
+          {currentParagraphId && (
+            <div className="flex items-center space-x-2">
+              {/* Loading indicator */}
+              {isLoading && (
+                <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-primary-600 dark:border-primary-300"></div>
+              )}
+              
+              {/* Play/Pause button */}
+              <button
+                onClick={() => isPlaying ? pauseTTS() : resumeTTS()}
+                className="p-2 rounded-md bg-primary-100 text-primary-600 dark:bg-primary-900 dark:text-primary-300 hover:bg-primary-200 dark:hover:bg-primary-800 disabled:opacity-50"
+                aria-label={isPlaying ? "Pause" : "Resume"}
+                title={isPlaying ? "暂停朗读" : "继续朗读"}
+                disabled={isLoading}
+              >
+                {isPlaying ? (
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6" />
+                  </svg>
+                ) : (
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                )}
+              </button>
+              
+              {/* Stop TTS button */}
+              <button
+                onClick={stopTTS}
+                className="p-2 rounded-md bg-secondary-100 text-secondary-600 dark:bg-secondary-800 dark:text-secondary-300 hover:bg-secondary-200 dark:hover:bg-secondary-700 disabled:opacity-50"
+                aria-label="Stop"
+                title="停止朗读"
+                disabled={isLoading}
+              >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
+              </svg>
+              </button>
+            </div>
+          )}
+          
           <button
             onClick={toggleLanguage}
             className="px-3 py-1 rounded-md bg-primary-600 dark:bg-primary-500 dark:bg-secondary-800 text-secondary-700 text-sm hover:bg-primary-700 dark:hover:bg-primary-600 mr-2"
@@ -271,23 +534,48 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
                 className={`mb-6 pb-6 border-b border-secondary-200 dark:border-secondary-800 ${hasVocabulary ? 'relative' : ''}`}
               >
                 {(showBoth || showEnglish) && (
-                  <p className="mb-2 text-secondary-900 dark:text-secondary-100 leading-relaxed">
-                    {isVocabBook && showVocabulary ? (
-                      vocabulary.length > 0 ? (
-                        <>
-                          {/* Add debug comment for development */}
-                          {/* <small className="text-xs text-gray-500">[DEBUG: {item.id} has {vocabulary.length} vocab items]</small> */}
-                          {highlightText(item.english, vocabulary, true)}
-                        </>
-                      ) : (
-                        <>
-                          {/* Add debug comment for development */}
-                          {/* <small className="text-xs text-gray-500">[DEBUG: No vocab for {item.id}]</small> */}
-                          {item.english}
-                        </>
-                      )
-                    ) : item.english}
-                  </p>
+                  <div 
+                    className="relative group mb-2"
+                    onMouseEnter={() => setHoverParagraphId(item.id)}
+                    onMouseLeave={() => setHoverParagraphId(null)}
+                  >
+                    <p className="text-secondary-900 dark:text-secondary-100 leading-relaxed">
+                      {isVocabBook && showVocabulary ? (
+                        vocabulary.length > 0 ? (
+                          <>
+                            {/* Add debug comment for development */}
+                            {/* <small className="text-xs text-gray-500">[DEBUG: {item.id} has {vocabulary.length} vocab items]</small> */}
+                            {highlightText(item.english, vocabulary, true)}
+                          </>
+                        ) : (
+                          <>
+                            {/* Add debug comment for development */}
+                            {/* <small className="text-xs text-gray-500">[DEBUG: No vocab for {item.id}]</small> */}
+                            {item.english}
+                          </>
+                        )
+                      ) : item.english}
+                    </p>
+                    
+                    {/* Play button that appears on hover */}
+                    {hoverParagraphId === item.id && !isPlaying && currentParagraphId !== item.id && (
+                      <button 
+                        onClick={() => playTTS(item.id)}
+                        className="absolute right-0 top-0 bg-primary-100 text-primary-600 dark:bg-primary-900 dark:text-primary-300 rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                        aria-label="Play paragraph"
+                        title="朗读此段落"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                        </svg>
+                      </button>
+                    )}
+                    
+                    {/* Current playing indicator */}
+                    {currentParagraphId === item.id && (
+                      <div className="absolute left-0 top-0 h-full w-1 bg-primary-500 rounded-full pulse-animation"></div>
+                    )}
+                  </div>
                 )}
                 {(showBoth || !showEnglish) && (
                   <p className="text-secondary-700 dark:text-secondary-300 leading-relaxed">
