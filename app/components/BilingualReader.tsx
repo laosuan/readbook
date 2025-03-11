@@ -31,6 +31,8 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
   // Text chunk handling for long paragraphs
   const [textChunks, setTextChunks] = useState<string[]>([]);
   const [currentChunkIndex, setCurrentChunkIndex] = useState<number>(0);
+  // Use a ref to store chunks to prevent loss during state updates
+  const textChunksRef = useRef<string[]>([]);
   // Constants
   const MAX_CHUNK_LENGTH = 300; // Maximum characters per chunk
   
@@ -222,11 +224,22 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
       start = end;
     }
     
+    // Store the chunks in ref for reliable access
+    textChunksRef.current = chunks;
+    console.log('Split text into chunks:', chunks.length, 'chunks');
     return chunks;
   }, [MAX_CHUNK_LENGTH]);
   
+  // Type declaration for audio handler function to avoid circular dependency
+  type PlayNextChunkFn = () => void;
+  
   // Play a specific chunk of text
-  const playTextChunk = useCallback(async (text: string, isLastChunk: boolean, paragraphIndex: number) => {
+  const playTextChunk = useCallback(async (
+    text: string, 
+    isLastChunk: boolean, 
+    paragraphIndex: number,
+    nextChunkCallback: PlayNextChunkFn
+  ) => {
     console.log('playTextChunk called with text length:', text.length, 'isLastChunk:', isLastChunk);
     
     if (!audioRef.current) {
@@ -260,7 +273,7 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
       
       // Parse response data
       const data = await response.json();
-      console.log('TTS API response received', data ? 'with data' : 'with empty data');
+      console.log('TTS API response received with data');
       
       // Validate audio data exists
       if (!data || !data.audio) {
@@ -277,11 +290,19 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
         // Reset audio element before setting new source
         audioRef.current.pause();
         audioRef.current.currentTime = 0;
-        audioRef.current.removeAttribute('src');
-        audioRef.current.load();
         
-        // Short delay to ensure audio element is ready
-        await new Promise(resolve => setTimeout(resolve, 50));
+        // Remove previous event listeners to avoid duplicates
+        audioRef.current.onended = null;
+        const oldElement = audioRef.current;
+        
+        // Create a completely new Audio element to avoid any state issues
+        audioRef.current = new Audio();
+        
+        // Transfer needed event handlers
+        // Re-add global debugging handlers
+        if (oldElement.onerror) audioRef.current.onerror = oldElement.onerror;
+        if (oldElement.oncanplay) audioRef.current.oncanplay = oldElement.oncanplay;
+        if (oldElement.oncanplaythrough) audioRef.current.oncanplaythrough = oldElement.oncanplaythrough;
         
         // Set new source
         audioRef.current.src = audioSrc;
@@ -336,7 +357,10 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
           } else {
             // Play the next chunk of the current paragraph
             console.log('Not last chunk, playing next chunk');
-            playNextChunk();
+            // Use setTimeout to ensure this runs after the current call stack is cleared
+            setTimeout(() => {
+              nextChunkCallback();
+            }, 50); // Small delay to ensure state is updated
           }
         };
         
@@ -350,6 +374,14 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
         audioRef.current.addEventListener('ended', () => {
           console.log('Audio ended event fired via addEventListener - this is a secondary check');
         });
+        
+        // Check if the audio element has the expected duration
+        audioRef.current.onloadedmetadata = () => {
+          console.log('Audio metadata loaded, duration:', audioRef.current?.duration);
+          if (audioRef.current?.duration === 0) {
+            console.warn('Warning: Audio duration is zero, this may cause playback issues');
+          }
+        };
       } else {
         console.error('Audio element reference is not available');
         throw new Error('Audio player not available');
@@ -360,27 +392,53 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
     } finally {
       setIsLoading(false);
     }
-  }, [content, currentParagraphIndex, stopTTS]);
+  }, [content, stopTTS]);
   
   // Play the next chunk of the current paragraph
   const playNextChunk = useCallback(() => {
     console.log('playNextChunk called');
+    console.log('textChunksRef has', textChunksRef.current.length, 'chunks');
     
-    if (currentChunkIndex < textChunks.length - 1) {
-      const nextChunkIndex = currentChunkIndex + 1;
-      setCurrentChunkIndex(nextChunkIndex);
-      const isLastChunk = nextChunkIndex === textChunks.length - 1;
-      console.log(`Playing next chunk (${nextChunkIndex + 1}/${textChunks.length})`);
-      
-      playTextChunk(textChunks[nextChunkIndex], isLastChunk, currentParagraphIndex!).catch((error: unknown) => {
-        console.error('Error playing next chunk:', error);
-        stopTTS();
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        alert(`Failed to play next chunk: ${errorMessage}`);
+    // Use a function to access the most up-to-date state values
+    // But rely on the ref for chunk data to avoid state update issues
+    setCurrentChunkIndex(prevChunkIndex => {
+      console.log('Current state values:', {
+        currentChunkIndex: prevChunkIndex,
+        totalChunks: textChunksRef.current.length,
+        hasMoreChunks: prevChunkIndex < textChunksRef.current.length - 1
       });
-    }
-  }, [currentChunkIndex, textChunks, stopTTS, playTextChunk, currentParagraphIndex]);
-  
+      
+      if (prevChunkIndex < textChunksRef.current.length - 1) {
+        const nextChunkIndex = prevChunkIndex + 1;
+        const isLastChunk = nextChunkIndex === textChunksRef.current.length - 1;
+        console.log(`Playing next chunk (${nextChunkIndex + 1}/${textChunksRef.current.length})`);
+        
+        // Important: Play the next chunk BEFORE updating state
+        try {
+          // Capture chunk text variable first to avoid race conditions
+          const nextChunkText = textChunksRef.current[nextChunkIndex];
+          console.log('Next chunk text (preview):', nextChunkText.substring(0, 30) + '...');
+          
+          // Play the chunk
+          playTextChunk(nextChunkText, isLastChunk, currentParagraphIndex!, playNextChunk).catch((error: unknown) => {
+            console.error('Error playing next chunk:', error);
+            stopTTS();
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            alert(`Failed to play next chunk: ${errorMessage}`);
+          });
+        } catch (error) {
+          console.error('Error in playNextChunk:', error);
+        }
+        
+        // Return the new chunk index to update the state
+        return nextChunkIndex;
+      } else {
+        console.log('No more chunks to play in this paragraph');
+        return prevChunkIndex; // Keep the current index if we can't advance
+      }
+    });
+  }, [playTextChunk, currentParagraphIndex, stopTTS]);
+
   // Play TTS for a specific paragraph
   const playTTS = useCallback(async (paragraphId: string) => {
     console.log('playTTS called with paragraph ID:', paragraphId);
@@ -412,6 +470,9 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
     // Split the paragraph text into chunks if it's long
     const chunks = splitTextIntoChunks(paragraphText);
     setTextChunks(chunks);
+    // Ensure chunk data is also in the ref
+    textChunksRef.current = chunks;
+    console.log('Set textChunks and textChunksRef with', chunks.length, 'chunks');
     setCurrentChunkIndex(0);
     
     // Important: Set these states before playing to ensure they're updated
@@ -430,7 +491,7 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
       
       // Play the first chunk
       const isLastChunk = chunks.length === 1;
-      await playTextChunk(chunks[0], isLastChunk, paragraphIndex);
+      await playTextChunk(chunks[0], isLastChunk, paragraphIndex, playNextChunk);
     } catch (error) {
       console.error('TTS error:', error);
       setIsLoading(false);
