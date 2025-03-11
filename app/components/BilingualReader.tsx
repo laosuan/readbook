@@ -35,9 +35,6 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
   // Constants
   const MAX_CHUNK_LENGTH = 300; // Maximum characters per chunk
   
-  // Debug variable to track TTS functionality
-  const [ttsInitialized, setTtsInitialized] = useState(false);
-
   // Stop TTS completely
   const stopTTS = useCallback(() => {
     console.log('Stopping TTS playback');
@@ -430,12 +427,6 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
       alert(`Speech synthesis failed: ${errorMessage}. Please try again later.`);
     }
   }, [content, stopTTS, splitTextIntoChunks, playTextChunk, setTextChunks, setCurrentChunkIndex, setCurrentParagraphId, setCurrentParagraphIndex, setIsPlaying, paragraphRefs]);
-  
-  // Log when TTS functions are initialized
-  useEffect(() => {
-    console.log('TTS functions initialized');
-    setTtsInitialized(true);
-  }, []);
   
   
   // These functions are no longer needed with the server-side approach
