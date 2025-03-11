@@ -27,6 +27,29 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
+  
+  // Text chunk handling for long paragraphs
+  const [textChunks, setTextChunks] = useState<string[]>([]);
+  const [currentChunkIndex, setCurrentChunkIndex] = useState<number>(0);
+  // Constants
+  const MAX_CHUNK_LENGTH = 300; // Maximum characters per chunk
+
+  // Stop TTS completely
+  const stopTTS = useCallback(() => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+      // Reset the onended handler
+      audioRef.current.onended = null;
+    }
+    
+    setIsPlaying(false);
+    setCurrentParagraphId(null);
+    setCurrentParagraphIndex(null);
+    setIsLoading(false);
+    setTextChunks([]);
+    setCurrentChunkIndex(0);
+  }, []);
 
   const increaseFontSize = () => {
     if (fontSize < 24) {
@@ -61,21 +84,8 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
       // Create audio element for playback
       if (!audioRef.current) {
         audioRef.current = new Audio();
-        
-        // Set up event listeners for the audio element
-        audioRef.current.onended = () => {
-          // When current audio ends, move to next paragraph if playing
-          if (isPlaying && currentParagraphIndex !== null) {
-            const nextIndex = currentParagraphIndex + 1;
-            if (nextIndex < content.length) {
-              const nextParagraph = content[nextIndex];
-              playTTS(nextParagraph.id);
-            } else {
-              // End of content
-              stopTTS();
-            }
-          }
-        };
+        // Note: onended event is now managed in the playTextChunk function
+        // to handle both chunk transitions and paragraph transitions
       }
       
       // Initialize audio context for potential audio processing
@@ -108,6 +118,151 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
     return allContent;
   }, [content]);
   
+  // Split text into manageable chunks
+  const splitTextIntoChunks = useCallback((text: string): string[] => {
+    if (text.length <= MAX_CHUNK_LENGTH) {
+      return [text];
+    }
+    
+    const chunks: string[] = [];
+    let start = 0;
+    
+    while (start < text.length) {
+      let end = Math.min(start + MAX_CHUNK_LENGTH, text.length);
+      
+      // Try to find sentence boundaries for more natural splitting
+      if (end < text.length) {
+        const sentenceEndings = ['. ', '! ', '? ', '; ']; // Potential sentence endings
+        let bestBreakPoint = end;
+        
+        // Look back from the max length to find a good sentence ending
+        for (let i = end; i > Math.max(start + 100, end - 100); i--) { // Don't look back more than 100 chars
+          const twoChars = text.substring(i - 1, i + 1);
+          if (sentenceEndings.some(ending => ending === twoChars)) {
+            bestBreakPoint = i + 1; // Include the space after the period
+            break;
+          }
+        }
+        
+        // If no good sentence ending found, look for a space
+        if (bestBreakPoint === end) {
+          const lastSpace = text.lastIndexOf(' ', end);
+          if (lastSpace > start + 100) { // Ensure we don't create tiny chunks
+            bestBreakPoint = lastSpace + 1; // Include the space
+          }
+        }
+        
+        end = bestBreakPoint;
+      }
+      
+      chunks.push(text.substring(start, end));
+      start = end;
+    }
+    
+    return chunks;
+  }, [MAX_CHUNK_LENGTH]);
+  
+  // Play a specific chunk of the current paragraph
+  const playTextChunk = useCallback(async (text: string, isLastChunk: boolean) => {
+    if (!audioRef.current) return;
+    
+    setIsLoading(true);
+    
+    try {
+      console.log('Requesting TTS for chunk:', text.substring(0, 50) + (text.length > 50 ? '...' : ''));
+      
+      const response = await fetch('/api/tts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          text: text,
+          voice: 'en-US-AriaNeural' // Default voice
+        }),
+      });
+      
+      // Check for HTTP errors
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('TTS API HTTP error:', response.status, errorText);
+        throw new Error(`TTS API error (${response.status}): ${errorText || 'No error details available'}`);
+      }
+      
+      // Parse response data
+      const data = await response.json();
+      console.log('TTS API response received', data ? 'with data' : 'with empty data');
+      
+      // Validate audio data exists
+      if (!data || !data.audio) {
+        console.error('TTS API response missing audio data:', data);
+        throw new Error('No audio data received from TTS API');
+      }
+      
+      // Create audio source from base64 data
+      const audioSrc = `data:audio/mp3;base64,${data.audio}`;
+      console.log('Audio source created, length:', data.audio.length);
+      
+      // Set up audio playback
+      if (audioRef.current) {
+        audioRef.current.src = audioSrc;
+        console.log('Starting audio playback');
+        
+        // Set up the ended event for this chunk
+        const handleEnded = () => {
+          if (isLastChunk) {
+            // If this is the last chunk of the paragraph, move to next paragraph
+            if (isPlaying && currentParagraphIndex !== null) {
+              const nextIndex = currentParagraphIndex + 1;
+              if (nextIndex < content.length) {
+                const nextParagraph = content[nextIndex];
+                playTTS(nextParagraph.id);
+              } else {
+                // End of content
+                stopTTS();
+              }
+            }
+          } else {
+            // Play the next chunk of the current paragraph
+            playNextChunk();
+          }
+        };
+        
+        audioRef.current.onended = handleEnded;
+        
+        await audioRef.current.play()
+          .catch(error => {
+            console.error('Audio playback error:', error);
+            throw new Error(`Audio playback failed: ${error.message}`);
+          });
+          
+        console.log('Audio playback started successfully');
+      } else {
+        console.error('Audio element reference is not available');
+        throw new Error('Audio player not available');
+      }
+    } catch (error) {
+      console.error('TTS request or playback error:', error);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [content, currentParagraphIndex, isPlaying, stopTTS]);
+  
+  // Play the next chunk in the sequence
+  const playNextChunk = useCallback(() => {
+    if (currentChunkIndex < textChunks.length - 1) {
+      const nextChunkIndex = currentChunkIndex + 1;
+      setCurrentChunkIndex(nextChunkIndex);
+      const isLastChunk = nextChunkIndex === textChunks.length - 1;
+      playTextChunk(textChunks[nextChunkIndex], isLastChunk).catch(error => {
+        console.error('Error playing next chunk:', error);
+        stopTTS();
+        alert(`Failed to play next chunk: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      });
+    }
+  }, [currentChunkIndex, textChunks, playTextChunk, stopTTS]);
+  
   // Play TTS for a specific paragraph
   const playTTS = useCallback(async (paragraphId: string) => {
     if (!audioRef.current) return;
@@ -122,10 +277,14 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
     const paragraphText = content[paragraphIndex].english;
     if (!paragraphText) return;
     
+    // Split the paragraph text into chunks if it's long
+    const chunks = splitTextIntoChunks(paragraphText);
+    setTextChunks(chunks);
+    setCurrentChunkIndex(0);
+    
     setCurrentParagraphId(paragraphId);
     setCurrentParagraphIndex(paragraphIndex);
     setIsPlaying(true);
-    setIsLoading(true);
     
     try {
       // Scroll to the paragraph being read
@@ -134,65 +293,9 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
         paragraphElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
       
-      // Get audio from server-side TTS API
-      console.log('Requesting TTS for text:', paragraphText.substring(0, 50) + (paragraphText.length > 50 ? '...' : ''));
-      
-      try {
-        const response = await fetch('/api/tts', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            text: paragraphText,
-            voice: 'en-US-AriaNeural' // Default voice
-          }),
-        });
-        
-        // Check for HTTP errors
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error('TTS API HTTP error:', response.status, errorText);
-          throw new Error(`TTS API error (${response.status}): ${errorText || 'No error details available'}`);
-        }
-        
-        // Parse response data
-        const data = await response.json();
-        console.log('TTS API response received', data ? 'with data' : 'with empty data');
-        
-        // Validate audio data exists
-        if (!data || !data.audio) {
-          console.error('TTS API response missing audio data:', data);
-          throw new Error('No audio data received from TTS API');
-        }
-        
-        // Create audio source from base64 data
-        const audioSrc = `data:audio/mp3;base64,${data.audio}`;
-        console.log('Audio source created, length:', data.audio.length);
-        
-        // Set up audio playback
-        if (audioRef.current) {
-          audioRef.current.src = audioSrc;
-          console.log('Starting audio playback');
-          
-          await audioRef.current.play()
-            .catch(error => {
-              console.error('Audio playback error:', error);
-              throw new Error(`Audio playback failed: ${error.message}`);
-            });
-            
-          console.log('Audio playback started successfully');
-        } else {
-          console.error('Audio element reference is not available');
-          throw new Error('Audio player not available');
-        }
-      } catch (error) {
-        console.error('TTS request or playback error:', error);
-        // Re-throw the error to be caught by the outer catch block
-        throw error;
-      } finally {
-        setIsLoading(false);
-      }
+      // Play the first chunk
+      const isLastChunk = chunks.length === 1;
+      await playTextChunk(chunks[0], isLastChunk);
     } catch (error) {
       console.error('TTS error:', error);
       setIsLoading(false);
@@ -202,7 +305,7 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       alert(`Speech synthesis failed: ${errorMessage}. Please try again later.`);
     }
-  }, [content]);
+  }, [content, stopTTS, splitTextIntoChunks, playTextChunk]);
   
   // These functions are no longer needed with the server-side approach
   // The audio element's 'onended' event handles moving to the next paragraph
@@ -228,18 +331,7 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
     }
   }, [currentParagraphId, playTTS]);
   
-  // Stop TTS completely
-  const stopTTS = useCallback(() => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
-    }
-    
-    setIsPlaying(false);
-    setCurrentParagraphId(null);
-    setCurrentParagraphIndex(null);
-    setIsLoading(false);
-  }, []);
+  // stopTTS function moved to the top of the component
 
   // Set up intersection observer to track visible paragraphs
   useEffect(() => {
