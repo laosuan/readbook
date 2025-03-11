@@ -11,7 +11,6 @@ interface BilingualReaderProps {
 }
 
 export default function BilingualReader({ content, chapterTitle, bookId }: BilingualReaderProps) {
-  console.log('BilingualReader component initializing with bookId:', bookId);
   const [fontSize, setFontSize] = useState<number>(16);
   const [showBoth, setShowBoth] = useState<boolean>(true);
   const [showEnglish, setShowEnglish] = useState<boolean>(true);
@@ -227,7 +226,7 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
   }, [MAX_CHUNK_LENGTH]);
   
   // Play a specific chunk of text
-  const playTextChunk = useCallback(async (text: string, isLastChunk: boolean) => {
+  const playTextChunk = useCallback(async (text: string, isLastChunk: boolean, paragraphIndex: number) => {
     console.log('playTextChunk called with text length:', text.length, 'isLastChunk:', isLastChunk);
     
     if (!audioRef.current) {
@@ -317,26 +316,40 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
         
         // Set up the ended event for this chunk
         const handleEnded = () => {
+          console.log('Audio ended event triggered', { isLastChunk, paragraphIndex, isPlaying });
+          
           if (isLastChunk) {
             // If this is the last chunk of the paragraph, move to next paragraph
-            if (isPlaying && currentParagraphIndex !== null) {
-              const nextIndex = currentParagraphIndex + 1;
+            if (paragraphIndex !== null) {
+              const nextIndex = paragraphIndex + 1;
+              console.log('Attempting to play next paragraph', { nextIndex, contentLength: content.length });
               if (nextIndex < content.length) {
                 const nextParagraph = content[nextIndex];
+                console.log('Playing next paragraph with ID:', nextParagraph.id);
                 playTTS(nextParagraph.id);
               } else {
                 // End of content
+                console.log('End of content reached, stopping TTS');
                 stopTTS();
               }
             }
           } else {
             // Play the next chunk of the current paragraph
+            console.log('Not last chunk, playing next chunk');
             playNextChunk();
           }
         };
         
+        // Remove any existing onended handler first
+        audioRef.current.onended = null;
+        // Then add the new handler
         audioRef.current.onended = handleEnded;
         console.log('Setting up onended handler, about to play audio...');
+        
+        // Add additional event to debug if ended event is not firing
+        audioRef.current.addEventListener('ended', () => {
+          console.log('Audio ended event fired via addEventListener - this is a secondary check');
+        });
       } else {
         console.error('Audio element reference is not available');
         throw new Error('Audio player not available');
@@ -347,7 +360,7 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
     } finally {
       setIsLoading(false);
     }
-  }, [content, currentParagraphIndex, isPlaying, stopTTS]);
+  }, [content, currentParagraphIndex, stopTTS]);
   
   // Play the next chunk of the current paragraph
   const playNextChunk = useCallback(() => {
@@ -359,14 +372,14 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
       const isLastChunk = nextChunkIndex === textChunks.length - 1;
       console.log(`Playing next chunk (${nextChunkIndex + 1}/${textChunks.length})`);
       
-      playTextChunk(textChunks[nextChunkIndex], isLastChunk).catch((error: unknown) => {
+      playTextChunk(textChunks[nextChunkIndex], isLastChunk, currentParagraphIndex!).catch((error: unknown) => {
         console.error('Error playing next chunk:', error);
         stopTTS();
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         alert(`Failed to play next chunk: ${errorMessage}`);
       });
     }
-  }, [currentChunkIndex, textChunks, stopTTS, playTextChunk]);
+  }, [currentChunkIndex, textChunks, stopTTS, playTextChunk, currentParagraphIndex]);
   
   // Play TTS for a specific paragraph
   const playTTS = useCallback(async (paragraphId: string) => {
@@ -401,6 +414,7 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
     setTextChunks(chunks);
     setCurrentChunkIndex(0);
     
+    // Important: Set these states before playing to ensure they're updated
     setCurrentParagraphId(paragraphId);
     setCurrentParagraphIndex(paragraphIndex);
     setIsPlaying(true);
@@ -416,7 +430,7 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
       
       // Play the first chunk
       const isLastChunk = chunks.length === 1;
-      await playTextChunk(chunks[0], isLastChunk);
+      await playTextChunk(chunks[0], isLastChunk, paragraphIndex);
     } catch (error) {
       console.error('TTS error:', error);
       setIsLoading(false);
@@ -778,7 +792,7 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
                         }}
                         className="absolute right-0 top-0 bg-primary-100 text-primary-600 dark:bg-primary-900 dark:text-primary-300 rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
                         aria-label="Play paragraph"
-                        title="朗读此段落"
+                        title="从此段开始朗读"
                       >
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
