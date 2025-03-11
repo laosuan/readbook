@@ -248,7 +248,7 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
         },
         body: JSON.stringify({
           text: text,
-          voice: 'en-US-AriaNeural' // Default voice
+          voice: 'en-US-AvaMultilingualNeural' // Default voice
         }),
       });
       
