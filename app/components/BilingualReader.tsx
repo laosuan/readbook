@@ -11,6 +11,7 @@ interface BilingualReaderProps {
 }
 
 export default function BilingualReader({ content, chapterTitle, bookId }: BilingualReaderProps) {
+  console.log('BilingualReader component initializing with bookId:', bookId);
   const [fontSize, setFontSize] = useState<number>(16);
   const [showBoth, setShowBoth] = useState<boolean>(true);
   const [showEnglish, setShowEnglish] = useState<boolean>(true);
@@ -33,14 +34,21 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
   const [currentChunkIndex, setCurrentChunkIndex] = useState<number>(0);
   // Constants
   const MAX_CHUNK_LENGTH = 300; // Maximum characters per chunk
+  
+  // Debug variable to track TTS functionality
+  const [ttsInitialized, setTtsInitialized] = useState(false);
 
   // Stop TTS completely
   const stopTTS = useCallback(() => {
+    console.log('Stopping TTS playback');
     if (audioRef.current) {
+      console.log('Audio element exists, stopping playback');
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
       // Reset the onended handler
       audioRef.current.onended = null;
+    } else {
+      console.error('No audio element available when stopping TTS');
     }
     
     setIsPlaying(false);
@@ -78,21 +86,78 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
     setShowVocabulary(!showVocabulary);
   };
 
-  // Initialize Audio Context
+  // Check if audio element exists when component mounts
   useEffect(() => {
+    console.log('Checking audio element status at component mount:', {
+      audioRefExists: !!audioRef,
+      audioElementInitialized: !!audioRef.current,
+    });
     if (typeof window !== 'undefined') {
       // Create audio element for playback
       if (!audioRef.current) {
-        audioRef.current = new Audio();
+        console.log('Audio element not initialized, creating new Audio()...');
+        try {
+          audioRef.current = new Audio();
+          console.log('Created new Audio element successfully:', !!audioRef.current);
+          
+          // Add global debugging handlers
+          audioRef.current.onerror = (e) => {
+            const errorCodes: Record<string, string> = {
+              '1': 'MEDIA_ERR_ABORTED - 获取过程被用户取消',
+              '2': 'MEDIA_ERR_NETWORK - 网络错误导致音频下载失败',
+              '3': 'MEDIA_ERR_DECODE - 音频解码错误',
+              '4': 'MEDIA_ERR_SRC_NOT_SUPPORTED - 音频格式不支持或资源不可用'
+            };
+            
+            if (!audioRef.current) {
+              console.error('Audio element error occurred but audio reference is null');
+              return;
+            }
+            
+            const mediaError = audioRef.current.error;
+            const errorCode = mediaError ? String(mediaError.code) : 'unknown';
+            const errorMessage = mediaError && errorCode in errorCodes 
+              ? errorCodes[errorCode] 
+              : '未知错误';
+            
+            console.error('Audio element error event:', {
+              errorCode,
+              errorMessage,
+              errorDetails: mediaError,
+              eventDetails: e
+            });
+            
+            // Reset the audio element when an error occurs to allow retrying
+            audioRef.current.removeAttribute('src');
+            audioRef.current.load();
+          };
+          
+          audioRef.current.oncanplay = () => {
+            console.log('Audio can play event fired');
+          };
+          
+          audioRef.current.oncanplaythrough = () => {
+            console.log('Audio can play through event fired');
+          };
+        } catch (error) {
+          console.error('Error creating Audio element:', error);
+        }
         // Note: onended event is now managed in the playTextChunk function
         // to handle both chunk transitions and paragraph transitions
+      } else {
+        console.log('Audio element already initialized');
       }
       
       // Initialize audio context for potential audio processing
       if (!audioContextRef.current) {
         try {
-          const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-          audioContextRef.current = new AudioContext();
+          // Use proper typing for AudioContext
+          // Define WebAudio API types
+          type AudioContextType = typeof window.AudioContext;
+          const AudioContextClass: AudioContextType = 
+            window.AudioContext || 
+            ((window as {webkitAudioContext?: AudioContextType}).webkitAudioContext as AudioContextType);
+          audioContextRef.current = new AudioContextClass();
         } catch (error) {
           console.error('Could not create AudioContext:', error);
         }
@@ -107,12 +172,14 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
         audioRef.current.src = '';
       }
     };
-  }, [content.length, currentParagraphIndex, isPlaying]);
+  }, [content.length, currentParagraphIndex, isPlaying, stopTTS]);
   
   // Function to get all paragraph text content
+  // This function is kept for future use but currently not being used
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const getAllParagraphsEnglishContent = useCallback(() => {
     const allContent: { id: string; text: string }[] = [];
-    content.forEach((item, index) => {
+    content.forEach((item) => {
       allContent.push({ id: item.id, text: item.english });
     });
     return allContent;
@@ -162,14 +229,20 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
     return chunks;
   }, [MAX_CHUNK_LENGTH]);
   
-  // Play a specific chunk of the current paragraph
+  // Play a specific chunk of text
   const playTextChunk = useCallback(async (text: string, isLastChunk: boolean) => {
-    if (!audioRef.current) return;
+    console.log('playTextChunk called with text length:', text.length, 'isLastChunk:', isLastChunk);
+    
+    if (!audioRef.current) {
+      console.error('Audio reference is not available in playTextChunk');
+      return;
+    }
     
     setIsLoading(true);
     
     try {
       console.log('Requesting TTS for chunk:', text.substring(0, 50) + (text.length > 50 ? '...' : ''));
+      console.log('Sending fetch request to /api/tts');
       
       const response = await fetch('/api/tts', {
         method: 'POST',
@@ -205,8 +278,45 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
       
       // Set up audio playback
       if (audioRef.current) {
+        // Reset audio element before setting new source
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+        audioRef.current.removeAttribute('src');
+        audioRef.current.load();
+        
+        // Short delay to ensure audio element is ready
+        await new Promise(resolve => setTimeout(resolve, 50));
+        
+        // Set new source
         audioRef.current.src = audioSrc;
+        
         console.log('Starting audio playback');
+        
+        // Add a retry mechanism for play
+        let retryCount = 0;
+        const maxRetries = 2;
+        
+        const attemptPlay = async (): Promise<void> => {
+          try {
+            await audioRef.current!.play();
+            console.log('Audio playback started successfully');
+          } catch (playError: unknown) {
+            retryCount++;
+            console.warn(`Play attempt ${retryCount} failed:`, playError);
+            
+            if (retryCount <= maxRetries) {
+              console.log(`Retrying playback (attempt ${retryCount}/${maxRetries})...`);
+              // Wait a moment before retrying
+              await new Promise(resolve => setTimeout(resolve, 300));
+              return attemptPlay();
+            } else {
+              const errorMessage = playError instanceof Error ? playError.message : 'Unknown error';
+              throw new Error(`Audio playback failed after ${maxRetries} attempts: ${errorMessage}`);
+            }
+          }
+        };
+        
+        await attemptPlay();
         
         // Set up the ended event for this chunk
         const handleEnded = () => {
@@ -229,14 +339,7 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
         };
         
         audioRef.current.onended = handleEnded;
-        
-        await audioRef.current.play()
-          .catch(error => {
-            console.error('Audio playback error:', error);
-            throw new Error(`Audio playback failed: ${error.message}`);
-          });
-          
-        console.log('Audio playback started successfully');
+        console.log('Setting up onended handler, about to play audio...');
       } else {
         console.error('Audio element reference is not available');
         throw new Error('Audio player not available');
@@ -249,33 +352,52 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
     }
   }, [content, currentParagraphIndex, isPlaying, stopTTS]);
   
-  // Play the next chunk in the sequence
+  // Play the next chunk of the current paragraph
   const playNextChunk = useCallback(() => {
+    console.log('playNextChunk called');
+    
     if (currentChunkIndex < textChunks.length - 1) {
       const nextChunkIndex = currentChunkIndex + 1;
       setCurrentChunkIndex(nextChunkIndex);
       const isLastChunk = nextChunkIndex === textChunks.length - 1;
-      playTextChunk(textChunks[nextChunkIndex], isLastChunk).catch(error => {
+      console.log(`Playing next chunk (${nextChunkIndex + 1}/${textChunks.length})`);
+      
+      playTextChunk(textChunks[nextChunkIndex], isLastChunk).catch((error: unknown) => {
         console.error('Error playing next chunk:', error);
         stopTTS();
-        alert(`Failed to play next chunk: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        alert(`Failed to play next chunk: ${errorMessage}`);
       });
     }
-  }, [currentChunkIndex, textChunks, playTextChunk, stopTTS]);
+  }, [currentChunkIndex, textChunks, stopTTS, playTextChunk]);
   
   // Play TTS for a specific paragraph
   const playTTS = useCallback(async (paragraphId: string) => {
-    if (!audioRef.current) return;
+    console.log('playTTS called with paragraph ID:', paragraphId);
+    console.log('Current time:', new Date().toISOString());
+    
+    if (!audioRef.current) {
+      console.error('Audio reference is not available');
+      return;
+    }
     
     // Stop any current playback
     stopTTS();
     
     // Find the index of the paragraph to start from
     const paragraphIndex = content.findIndex(item => item.id === paragraphId);
-    if (paragraphIndex === -1) return;
+    console.log('Paragraph index:', paragraphIndex);
+    if (paragraphIndex === -1) {
+      console.error('Paragraph not found in content');
+      return;
+    }
     
     const paragraphText = content[paragraphIndex].english;
-    if (!paragraphText) return;
+    console.log('Paragraph text:', paragraphText ? paragraphText.substring(0, 50) + '...' : 'undefined');
+    if (!paragraphText) {
+      console.error('No English text for this paragraph');
+      return;
+    }
     
     // Split the paragraph text into chunks if it's long
     const chunks = splitTextIntoChunks(paragraphText);
@@ -288,9 +410,11 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
     
     try {
       // Scroll to the paragraph being read
-      const paragraphElement = paragraphRefs.current.get(paragraphId);
-      if (paragraphElement) {
-        paragraphElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (paragraphRefs.current.has(paragraphId)) {
+        const paragraphElement = paragraphRefs.current.get(paragraphId);
+        if (paragraphElement) {
+          paragraphElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
       }
       
       // Play the first chunk
@@ -305,7 +429,14 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       alert(`Speech synthesis failed: ${errorMessage}. Please try again later.`);
     }
-  }, [content, stopTTS, splitTextIntoChunks, playTextChunk]);
+  }, [content, stopTTS, splitTextIntoChunks, playTextChunk, setTextChunks, setCurrentChunkIndex, setCurrentParagraphId, setCurrentParagraphIndex, setIsPlaying, paragraphRefs]);
+  
+  // Log when TTS functions are initialized
+  useEffect(() => {
+    console.log('TTS functions initialized');
+    setTtsInitialized(true);
+  }, []);
+  
   
   // These functions are no longer needed with the server-side approach
   // The audio element's 'onended' event handles moving to the next paragraph
@@ -335,7 +466,7 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
 
   // Set up intersection observer to track visible paragraphs
   useEffect(() => {
-    if (typeof window === 'undefined' || !showVocabulary || !(bookId === '8')) return;
+    if (typeof window === 'undefined' || !showVocabulary || bookId !== '8') return;
     
     const observerOptions = {
       root: null, // viewport
@@ -395,11 +526,8 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
   // Update vocabulary items when visible paragraphs change
   useEffect(() => {
     if (!showVocabulary || !(bookId === '8') || !currentChapterInfo) {
-      console.log('Skipping vocabulary fetch - conditions not met:', { showVocabulary, bookId, currentChapterInfo });
       return;
     }
-    
-    console.log('Current visible paragraphs:', Array.from(visibleParagraphs));
     
     // Use a debounce timer to avoid excessive API calls
     let debounceTimer: NodeJS.Timeout | null = null;
@@ -427,7 +555,6 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
         }
       });
       
-      console.log('Checking paragraphs (including adjacent):', Array.from(paragraphIdsToCheck));
       
       // Get only paragraphs that aren't already loaded and belong to the current chapter
       const paragraphsToFetch = Array.from(paragraphIdsToCheck).filter(paragraphId => {
@@ -448,20 +575,14 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
       // If no new paragraphs to fetch, exit early
       if (paragraphsToFetch.length === 0) return;
       
-      console.log(`Fetching vocabulary for ${paragraphsToFetch.length} new paragraphs in chapter ${currentChapterInfo.part}-${currentChapterInfo.chapter}`);
       
       // Process each new visible paragraph
       // Use Promise.all to fetch vocabulary for all paragraphs in parallel
       const fetchPromises = paragraphsToFetch.map(async (paragraphId) => {
         try {
           const vocab = await getVocabularyForParagraph(paragraphId);
-          console.log(`Retrieved ${vocab.length} vocabulary items for paragraph ${paragraphId}`);
-          
           if (vocab.length > 0) {
             newVocabularyItems[paragraphId] = vocab;
-            console.log(`Added vocabulary for paragraph ${paragraphId}:`, vocab);
-          } else {
-            console.log(`No vocabulary found for paragraph ${paragraphId}`);
           }
           return { success: true, paragraphId };
         } catch (error) {
@@ -536,7 +657,7 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
               aria-label="Increase font size"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd" />
+                <path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 01-1 1h-3a1 1 0 110-2h3V8a1 1 0 011-1v3z" clipRule="evenodd" />
               </svg>
             </button>
           </div>
@@ -614,7 +735,7 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
             // Debug: uncomment to help track paragraph IDs with missing vocabulary
             // useEffect(() => {
             //   if (isVocabBook && showVocabulary && item.id === '8-1-1-24' && !hasVocabulary) {
-            //     console.log(`Paragraph ${item.id} missing vocabulary but should have it`);
+            //     // Removed vocabulary debug log
             //   }
             // }, [item.id, hasVocabulary, isVocabBook, showVocabulary]);
             
@@ -652,7 +773,18 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
                     {/* Play button that appears on hover */}
                     {hoverParagraphId === item.id && !isPlaying && currentParagraphId !== item.id && (
                       <button 
-                        onClick={() => playTTS(item.id)}
+                        onClick={(e) => {
+                          console.log('PLAY BUTTON CLICKED for paragraph:', item.id);
+                          console.log('playTTS function exists:', typeof playTTS === 'function');
+                          console.log('Event target:', e.target);
+                          e.stopPropagation(); // 防止事件冒泡
+                          try {
+                            playTTS(item.id);
+                            console.log('playTTS call completed');
+                          } catch (error) {
+                            console.error('Error calling playTTS:', error);
+                          }
+                        }}
                         className="absolute right-0 top-0 bg-primary-100 text-primary-600 dark:bg-primary-900 dark:text-primary-300 rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
                         aria-label="Play paragraph"
                         title="朗读此段落"

@@ -49,7 +49,6 @@ const failedVocabularyRequests: Set<string> = new Set();
 
 // Function to get vocabulary for a specific paragraph by ID
 export async function getVocabularyForParagraph(paragraphId: string): Promise<KeyWord[]> {
-  console.log(`Getting vocabulary for paragraph: ${paragraphId}`);
   try {
     // Extract parts from the paragraph ID (format: bookId-part-chapter-paragraphId)
     const idParts = paragraphId.split('-');
@@ -74,7 +73,6 @@ export async function getVocabularyForParagraph(paragraphId: string): Promise<Ke
           // Try to fetch the vocabulary data for this part-chapter from CDN
           // The file naming pattern is vocabulary_part-chapter.json
           const url = `${CDN_BASE_URL}vocabulary_${part}-${chapter}.json`;
-          console.log(`Fetching vocabulary data from: ${url}`);
           
           // Implement retry logic with a maximum of 1 retry
           let retries = 0;
@@ -142,7 +140,6 @@ export async function getVocabularyForParagraph(paragraphId: string): Promise<Ke
       // Find the vocabulary item with the matching ID in the cached data
       const vocabItem = vocabularyCache[cacheKey]?.find(item => item.id === numericId);
       const result = vocabItem?.key_words || [];
-      console.log(`Found ${result.length} vocabulary items for paragraph ${paragraphId} with ID ${numericId}:`, result);
       return result;
     } else {
       // For old format IDs, we won't attempt to load from the full vocabulary file
@@ -158,7 +155,6 @@ export async function getVocabularyForParagraph(paragraphId: string): Promise<Ke
 // Function to highlight text with vocabulary words
 export function highlightText(text: string, keywords: KeyWord[], isEnglish: boolean): ReactNode {
   // Debug information
-  console.log(`Highlighting ${isEnglish ? 'English' : 'Chinese'} text with ${keywords.length} keywords:`, keywords.map(k => isEnglish ? k.raw_en : k.raw_cn));
   
   if (!keywords || keywords.length === 0 || !text) {
     return text;
@@ -181,11 +177,8 @@ export function highlightText(text: string, keywords: KeyWord[], isEnglish: bool
   for (const keyword of keywords) {
     const rawText = isEnglish ? keyword.raw_en : keyword.raw_cn;
     if (!rawText || rawText.trim() === '') {
-      console.log('Skipping empty keyword:', keyword);
       continue;
     }
-    
-    console.log(`Finding matches for keyword: '${rawText}'`);
     
     // Create the appropriate regex based on language and word type
     let regex: RegExp;
@@ -194,11 +187,9 @@ export function highlightText(text: string, keywords: KeyWord[], isEnglish: bool
       if (/^[a-zA-Z]+$/.test(rawText)) {
         // Pure alphabetical words - use word boundaries
         regex = new RegExp(`\\b${escapeRegExp(rawText)}\\b`, 'gi');
-        console.log(`Using word boundary pattern for '${rawText}'`);
       } else {
         // Phrases or words with special characters - use exact match
         regex = new RegExp(`${escapeRegExp(rawText)}`, 'gi');
-        console.log(`Using exact match pattern for '${rawText}'`);
       }
     } else {
       // For Chinese, use exact match
@@ -210,7 +201,6 @@ export function highlightText(text: string, keywords: KeyWord[], isEnglish: bool
     while ((match = regex.exec(text)) !== null) {
       const start = match.index;
       const end = start + match[0].length;
-      console.log(`Match found for '${rawText}' at positions ${start}-${end}: '${match[0]}'`);
       
       // Add this match to our list
       matches.push({
@@ -229,7 +219,6 @@ export function highlightText(text: string, keywords: KeyWord[], isEnglish: bool
   
   // If no matches found, return the original text
   if (matches.length === 0) {
-    console.log('No matches found in text');
     return text;
   }
   
@@ -248,15 +237,12 @@ export function highlightText(text: string, keywords: KeyWord[], isEnglish: bool
   for (const match of matches) {
     // Skip this match if it overlaps with a previously kept match
     if (match.start < lastEnd) {
-      console.log(`Skipping overlapping match for '${isEnglish ? match.keyword.raw_en : match.keyword.raw_cn}'`);
       continue;
     }
     
     filteredMatches.push(match);
     lastEnd = match.end;
   }
-  
-  console.log(`Found ${filteredMatches.length} non-overlapping matches`);
   
   // If no valid matches after filtering, return original text
   if (filteredMatches.length === 0) {
