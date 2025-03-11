@@ -41,7 +41,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 });
     }
     
-    const { text, voice = 'en-US-AriaNeural' } = requestBody;
+    var { text, voice = 'en-US-AriaNeural' } = requestBody;
+    text = text.replace(/\n/g, ' ');
     console.log('Request received with text:', text && text.substring(0, 50) + '...');
     
     if (!text) {
@@ -62,7 +63,7 @@ export async function POST(request: NextRequest) {
       console.log('Starting speech synthesis with voice:', voice);
       
       // Synthesize the text to speech
-      console.log('Calling tts.synthesize with text:', text.substring(0, 30) + '...');
+      console.log('Calling tts.synthesize with text:', text);
       console.log('Voice:', voice);
       try {
         await tts.synthesize(text, voice, {
