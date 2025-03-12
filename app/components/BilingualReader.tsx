@@ -28,6 +28,13 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   
+  // Add state for floating controls
+  const [showFloatingControls, setShowFloatingControls] = useState<boolean>(true);
+
+  // Use a ref to track the last scroll position
+  const lastScrollPositionRef = useRef<number>(0);
+  const scrollTimerRef = useRef<NodeJS.Timeout | null>(null);
+
   // Stop TTS completely
   const stopTTS = useCallback(() => {
     console.log('Stopping TTS playback');
@@ -74,6 +81,44 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
   const toggleVocabulary = () => {
     setShowVocabulary(!showVocabulary);
   };
+
+  // Track scroll to show/hide floating controls
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleScroll = () => {
+      const currentScrollPos = window.scrollY;
+      
+      // Show/hide based on scroll direction
+      if (currentScrollPos > lastScrollPositionRef.current + 20) {
+        // Scrolling down, hide controls
+        setShowFloatingControls(false);
+      } else if (currentScrollPos < lastScrollPositionRef.current - 20) {
+        // Scrolling up, show controls
+        setShowFloatingControls(true);
+      }
+      
+      lastScrollPositionRef.current = currentScrollPos;
+      
+      // Clear existing timer
+      if (scrollTimerRef.current) {
+        clearTimeout(scrollTimerRef.current);
+      }
+      
+      // Show controls briefly when scrolling stops
+      scrollTimerRef.current = setTimeout(() => {
+        setShowFloatingControls(true);
+      }, 1000);
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      if (scrollTimerRef.current) {
+        clearTimeout(scrollTimerRef.current);
+      }
+    };
+  }, []);
 
   // Check if audio element exists when component mounts
   useEffect(() => {
@@ -161,9 +206,8 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
         audioRef.current.src = '';
       }
     };
-  }, [content.length, currentParagraphIndex, isPlaying, stopTTS]);
-  
-  // Play a specific chunk of text
+  }, [stopTTS]);
+
   const playTextChunk = useCallback(async (
     text: string, 
     paragraphIndex: number
@@ -312,14 +356,14 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
       setIsLoading(false);
     }
   }, [content, stopTTS]);
-  
+
   // Play the next chunk of the current paragraph
   // This function is no longer needed as the server handles text chunking
   // We'll use this for cleanup
   const clearPlaybackState = useCallback(() => {
     setIsPlaying(false);
   }, []);
-  
+
   // Play TTS for a specific paragraph
   const playTTS = useCallback(async (paragraphId: string) => {
     console.log('playTTS called with paragraph ID:', paragraphId);
@@ -378,7 +422,7 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
       alert(`Speech synthesis failed: ${errorMessage}. Please try again later.`);
     }
   }, [content, stopTTS, playTextChunk, setCurrentParagraphId, setCurrentParagraphIndex, clearPlaybackState, setIsPlaying, paragraphRefs]);
-  
+
   // Pause TTS
   const pauseTTS = useCallback(() => {
     if (audioRef.current) {
@@ -386,7 +430,7 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
       setIsPlaying(false);
     }
   }, []);
-  
+
   // Resume TTS
   const resumeTTS = useCallback(() => {
     if (audioRef.current && audioRef.current.src) {
@@ -399,7 +443,25 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
       playTTS(currentParagraphId);
     }
   }, [currentParagraphId, playTTS]);
-  
+
+  // Add tap-to-play functionality for paragraphs
+  const handleParagraphTap = useCallback((paragraphId: string, event: React.MouseEvent) => {
+    // Prevent tap-to-play on desktop if using the hover button
+    if (window.innerWidth > 768 && hoverParagraphId === paragraphId) {
+      return;
+    }
+    
+    // Don't play if already playing this paragraph
+    if (currentParagraphId === paragraphId) {
+      // Toggle play/pause instead
+      isPlaying ? pauseTTS() : resumeTTS();
+      return;
+    }
+    
+    // Start playing from this paragraph
+    playTTS(paragraphId);
+  }, [currentParagraphId, hoverParagraphId, isPlaying, pauseTTS, playTTS, resumeTTS]);
+
   // Set up intersection observer to track visible paragraphs
   useEffect(() => {
     if (typeof window === 'undefined' || !showVocabulary || bookId !== '8') return;
@@ -612,6 +674,28 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
             opacity: 1;
             backdrop-filter: blur(8px);
           }
+          /* Add a visual cue for tappable paragraphs on mobile */
+          .prose .relative {
+            position: relative;
+          }
+          .prose .relative::after {
+            content: '';
+            position: absolute;
+            right: -8px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background-color: var(--color-primary-500);
+            opacity: 0.6;
+          }
+          /* Highlight the active paragraph more prominently on mobile */
+          .prose .relative:has(.pulse-animation) {
+            background-color: rgba(var(--color-primary-500-rgb), 0.05);
+            border-radius: 0.25rem;
+            padding-left: 0.5rem;
+          }
         }
       `;
       document.head.appendChild(style);
@@ -678,19 +762,20 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
               {/* Play/Pause button */}
               <button
                 onClick={() => isPlaying ? pauseTTS() : resumeTTS()}
-                className="p-2 rounded-md bg-primary-100 text-primary-600 dark:bg-primary-900 dark:text-primary-300 hover:bg-primary-200 dark:hover:bg-primary-800 disabled:opacity-50"
+                className="p-2 rounded-md text-white text-sm hover:bg-primary-700 dark:hover:bg-primary-600 disabled:opacity-50"
+                style={{ backgroundColor: '#e2e8f0' }}
                 aria-label={isPlaying ? "Pause" : "Resume"}
                 title={isPlaying ? "暂停朗读" : "继续朗读"}
                 disabled={isLoading}
               >
                 {isPlaying ? (
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6" />
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="black" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M10 9v6m4-6v6" />
                   </svg>
                 ) : (
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="#3B82F6" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 )}
               </button>
@@ -698,14 +783,15 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
               {/* Stop TTS button */}
               <button
                 onClick={stopTTS}
-                className="p-2 rounded-md bg-secondary-100 text-secondary-600 dark:bg-secondary-800 dark:text-secondary-300 hover:bg-secondary-200 dark:hover:bg-secondary-700 disabled:opacity-50"
+                className="p-2 rounded-md text-secondary-800 dark:text-secondary-200 hover:bg-secondary-300 dark:hover:bg-secondary-600 disabled:opacity-50"
+                style={{ backgroundColor: '#e2e8f0' }}
                 aria-label="Stop"
                 title="停止朗读"
                 disabled={isLoading}
               >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="#64748b" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
               </svg>
               </button>
             </div>
@@ -713,7 +799,7 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
           
           <button
             onClick={toggleLanguage}
-            className="px-3 py-1 rounded-md bg-primary-600 dark:bg-primary-500 dark:bg-secondary-800 text-white dark:text-secondary-200 text-sm hover:bg-primary-700 dark:hover:bg-primary-600 mr-2"
+            className="px-3 py-1 rounded-md bg-primary-600 dark:bg-primary-500 dark:bg-secondary-800 text-white dark:text-secondary-200 text-sm hover:bg-primary-700 dark:hover:bg-primary-600"
           >
             {showBoth ? '仅显示英文' : showEnglish ? '仅显示中文' : '双语对照'}
           </button>
@@ -808,6 +894,7 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
                     className="relative group mb-2"
                     onMouseEnter={() => setHoverParagraphId(item.id)}
                     onMouseLeave={() => setHoverParagraphId(null)}
+                    onClick={(e) => handleParagraphTap(item.id, e)}
                   >
                     <p className="text-secondary-900 dark:text-secondary-100 leading-relaxed">
                       {isVocabBook && showVocabulary ? (
@@ -823,19 +910,21 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
                       ) : item.english}
                     </p>
                     
-                    {/* Play button that appears on hover */}
+                    {/* Play button that appears on hover - only on desktop */}
                     {hoverParagraphId === item.id && !isPlaying && currentParagraphId !== item.id && (
                       <button 
                         onClick={(e) => {
                           e.stopPropagation();
                           playTTS(item.id);
                         }}
-                        className="absolute right-0 top-0 bg-primary-100 text-primary-600 dark:bg-primary-900 dark:text-primary-300 rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                        className="absolute right-0 top-0 bg-primary-100 text-primary-600 dark:bg-primary-900 dark:text-primary-300 rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 hidden md:block"
                         aria-label="Play paragraph"
                         title="从此段开始朗读"
                       >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="black" strokeWidth={2}>
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="black" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                          </svg>
                         </svg>
                       </button>
                     )}
@@ -904,6 +993,55 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
         )}
       </div>
       
+      {/* Floating play controls for both mobile and desktop */}
+      {currentParagraphId && showFloatingControls && (
+        <div 
+          className="fixed bottom-16 md:bottom-8 left-1/2 transform -translate-x-1/2 rounded-full shadow-md p-2 flex items-center space-x-2 z-50 transition-opacity duration-300 opacity-90" 
+          style={{ backgroundColor: 'rgba(248, 250, 252, 0.95)', backdropFilter: 'blur(4px)' }}
+        >
+          {/* Loading indicator */}
+          {isLoading && (
+            <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-primary-600 dark:border-primary-300"></div>
+          )}
+          
+          {/* Play/Pause button */}
+          <button
+            onClick={() => isPlaying ? pauseTTS() : resumeTTS()}
+            className="p-2 rounded-full flex items-center justify-center"
+            style={{ backgroundColor: '#e2e8f0' }}
+            aria-label={isPlaying ? "Pause" : "Resume"}
+            title={isPlaying ? "暂停朗读" : "继续朗读"}
+            disabled={isLoading}
+          >
+            {isPlaying ? (
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="black" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M10 9v6m4-6v6" />
+              </svg>
+            ) : (
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="#3B82F6" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            )}
+          </button>
+          
+          {/* Stop TTS button */}
+          <button
+            onClick={stopTTS}
+            className="p-2 rounded-full flex items-center justify-center"
+            style={{ backgroundColor: '#e2e8f0' }}
+            aria-label="Stop"
+            title="停止朗读"
+            disabled={isLoading}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="#64748b" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
+            </svg>
+          </button>
+        </div>
+      )}
+      
       {/* Mobile vocabulary floating button - only on mobile and when vocabulary is available */}
       {(bookId === '8') && showVocabulary && Object.keys(vocabularyItems).length > 0 && (
         <button 
@@ -926,7 +1064,6 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
       {/* Mobile vocabulary bottom panel */}
       {showMobileVocabulary && showVocabulary && Object.keys(vocabularyItems).length > 0 && (
         <div className="md:hidden mobile-vocabulary-panel bg-secondary-50 dark:bg-secondary-900 p-4" style={{ backgroundColor: 'var(--bg-secondary-50, #f9fafb)', opacity: 1 }}>
-          {/* <h3 className="text-base font-medium mb-3 text-secondary-900 dark:text-secondary-100 sticky top-0 bg-secondary-50 dark:bg-secondary-900 py-2">重点词汇</h3> */}
           <div className="space-y-3">
             {visibleParagraphs.size > 0 ? (
               Array.from(visibleParagraphs)
