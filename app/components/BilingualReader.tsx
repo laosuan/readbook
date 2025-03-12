@@ -27,7 +27,6 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
   const [hoverParagraphId, setHoverParagraphId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const audioContextRef = useRef<AudioContext | null>(null);
   
   // Add state for floating controls
   const [showFloatingControls, setShowFloatingControls] = useState<boolean>(true);
@@ -39,6 +38,17 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
   // Forward declarations to solve circular references
   const playTTSRef = useRef<(paragraphId: string) => Promise<void>>(undefined!);
   const playTextChunkRef = useRef<(text: string, paragraphIndex: number) => Promise<void>>(undefined!);
+
+  // Add iOS Safari detection function
+  const isIOSSafari = useCallback(() => {
+    if (typeof window === 'undefined' || typeof navigator === 'undefined') return false;
+    const ua = navigator.userAgent;
+    // Type assertion for MSStream property which is used in browser detection
+    return /iPad|iPhone|iPod/.test(ua) && !(window as Window & { MSStream?: unknown }).MSStream && /Safari/.test(ua);
+  }, []);
+
+  // Add a ref for tracking audio initialization
+  const audioInitializedRef = useRef<boolean>(false);
 
   // Stop TTS completely
   const stopTTS = useCallback(() => {
@@ -137,6 +147,15 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
         console.log('Audio element not initialized, creating new Audio()...');
         try {
           audioRef.current = new Audio();
+          // Add attributes needed for iOS
+          if (isIOSSafari()) {
+            audioRef.current.setAttribute('playsinline', '');
+            audioRef.current.setAttribute('webkit-playsinline', '');
+            
+            // Store in window for iOS Safari to reuse the same audio context
+            (window as unknown as { globalAudioElement: HTMLAudioElement | null }).globalAudioElement = audioRef.current;
+          }
+          
           console.log('Created new Audio element successfully:', !!audioRef.current);
           
           // Add global debugging handlers
@@ -187,19 +206,20 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
         console.log('Audio element already initialized');
       }
       
-      // Initialize audio context for potential audio processing
-      if (!audioContextRef.current) {
-        try {
-          // Use proper typing for AudioContext
-          // Define WebAudio API types
-          type AudioContextType = typeof window.AudioContext;
-          const AudioContextClass: AudioContextType = 
-            window.AudioContext || 
-            ((window as {webkitAudioContext?: AudioContextType}).webkitAudioContext as AudioContextType);
-          audioContextRef.current = new AudioContextClass();
-        } catch (error) {
-          console.error('Could not create AudioContext:', error);
-        }
+      // Initialize audio on user interaction for iOS Safari
+      if (isIOSSafari() && !audioInitializedRef.current) {
+        const initAudioOnUserInteraction = () => {
+          console.log('User interaction detected, initializing audio for iOS');
+          // Create and play a silent audio file to initialize audio
+          const silentAudio = new Audio("data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4LjI5LjEwMAAAAAAAAAAAAAAA//tQwAAAAAAAAAAAAAAAAAAAAAAASW5mbwAAAA8AAAACAAABIADAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV6urq6urq6urq6urq6urq6urq6urq6urq6v///////////////////////////////////////////wAAADlMQVZDNTguNTQuMTAwAAAAAAAAAAAUBAj/4QAAMAAAAQAAAQAB//8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP/7UMQAAAppSqVGiACsCH2qVYYAQABkb3duAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVUUAAIAAABkb3duAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVU=");
+          silentAudio.play().then(() => {
+            audioInitializedRef.current = true;
+            console.log('Silent audio initialized successfully for iOS');
+          }).catch(e => console.log("Silent audio initialization failed:", e));
+        };
+
+        document.addEventListener('touchstart', initAudioOnUserInteraction, { once: true });
+        document.addEventListener('click', initAudioOnUserInteraction, { once: true });
       }
     }
     
@@ -210,8 +230,14 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
         audioRef.current.pause();
         audioRef.current.src = '';
       }
+      
+      // Clean up event listeners if added
+      if (isIOSSafari()) {
+        document.removeEventListener('touchstart', () => {});
+        document.removeEventListener('click', () => {});
+      }
     };
-  }, [stopTTS]);
+  }, [stopTTS, isIOSSafari]);
 
   // Play the next chunk of text from the paragraph
   const playTextChunk = useCallback(async (text: string, paragraphIndex: number): Promise<void> => {
@@ -269,16 +295,31 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
           
           // Remove previous event listeners to avoid duplicates
           audioRef.current.onended = null;
-          const oldElement = audioRef.current;
           
-          // Create a completely new Audio element to avoid any state issues
-          audioRef.current = new Audio();
-          
-          // Transfer needed event handlers
-          // Re-add global debugging handlers
-          if (oldElement.onerror) audioRef.current.onerror = oldElement.onerror;
-          if (oldElement.oncanplay) audioRef.current.oncanplay = oldElement.oncanplay;
-          if (oldElement.oncanplaythrough) audioRef.current.oncanplaythrough = oldElement.oncanplaythrough;
+          // Special handling for iOS Safari
+          if (isIOSSafari()) {
+            // For iOS Safari, use the globally stored audio element that's initialized on first user interaction
+            const globalAudio = (window as unknown as { globalAudioElement?: HTMLAudioElement }).globalAudioElement;
+            if (globalAudio) {
+              audioRef.current = globalAudio;
+            }
+            
+            // Ensure attributes for iOS playback - need null check
+            if (audioRef.current) {
+              audioRef.current.setAttribute('playsinline', '');
+              audioRef.current.setAttribute('webkit-playsinline', '');
+            }
+          } else {
+            // For other browsers, create a new Audio element to avoid state issues
+            const oldElement = audioRef.current;
+            audioRef.current = new Audio();
+            
+            // Transfer needed event handlers
+            // Re-add global debugging handlers
+            if (oldElement.onerror) audioRef.current.onerror = oldElement.onerror;
+            if (oldElement.oncanplay) audioRef.current.oncanplay = oldElement.oncanplay;
+            if (oldElement.oncanplaythrough) audioRef.current.oncanplaythrough = oldElement.oncanplaythrough;
+          }
           
           // Set new source
           audioRef.current.src = audioSrc;
@@ -287,23 +328,27 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
           
           // Add a retry mechanism for play
           let retryCount = 0;
-          const maxRetries = 2;
+          const maxRetries = isIOSSafari() ? 3 : 2;  // Increased retries for iOS Safari
           
           const attemptPlay = async (): Promise<void> => {
             try {
-              await audioRef.current!.play();
-              console.log('Audio playback started successfully');
+              if (audioRef.current) {
+                await audioRef.current.play();
+                console.log('Audio playback started successfully');
+              } else {
+                throw new Error('Audio element is null');
+              }
             } catch (playError: unknown) {
               retryCount++;
-              console.warn(`Play attempt ${retryCount} failed:`, playError);
+              const errorMessage = playError instanceof Error ? playError.message : 'Unknown error';
+              console.warn(`Play attempt ${retryCount} failed: ${errorMessage}`);
               
               if (retryCount <= maxRetries) {
                 console.log(`Retrying playback (attempt ${retryCount}/${maxRetries})...`);
                 // Wait a moment before retrying
-                await new Promise(resolve => setTimeout(resolve, 300));
+                await new Promise(resolve => setTimeout(resolve, isIOSSafari() ? 500 : 300));  // Longer delay for iOS
                 return attemptPlay();
               } else {
-                const errorMessage = playError instanceof Error ? playError.message : 'Unknown error';
                 throw new Error(`Audio playback failed after ${maxRetries} attempts: ${errorMessage}`);
               }
             }
@@ -324,10 +369,23 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
                 console.log('Playing next paragraph with ID:', nextParagraph.id);
                 setCurrentParagraphId(nextParagraph.id);
                 setCurrentParagraphIndex(nextIndex);
-                if (playTTSRef.current) {
-                  playTTSRef.current(nextParagraph.id);
+                
+                // For iOS Safari, use a timeout to help with playback chain
+                if (isIOSSafari()) {
+                  // Longer delay for iOS Safari to prevent autoplay restrictions
+                  setTimeout(() => {
+                    if (playTTSRef.current) {
+                      playTTSRef.current(nextParagraph.id);
+                    } else {
+                      console.error('playTTS reference is not available');
+                    }
+                  }, 100);
                 } else {
-                  console.error('playTTS reference is not available');
+                  if (playTTSRef.current) {
+                    playTTSRef.current(nextParagraph.id);
+                  } else {
+                    console.error('playTTS reference is not available');
+                  }
                 }
               } else {
                 // End of content
@@ -338,23 +396,28 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
           };
           
           // Remove any existing onended handler first
-          audioRef.current.onended = null;
-          // Then add the new handler
-          audioRef.current.onended = handleEnded;
-          console.log('Setting up onended handler, about to play audio...');
-          
-          // Add additional event to debug if ended event is not firing
-          audioRef.current.addEventListener('ended', () => {
-            console.log('Audio ended event fired via addEventListener - this is a secondary check');
-          });
-          
-          // Check if the audio element has the expected duration
-          audioRef.current.onloadedmetadata = () => {
-            console.log('Audio metadata loaded, duration:', audioRef.current?.duration);
-            if (audioRef.current?.duration === 0) {
-              console.warn('Warning: Audio duration is zero, this may cause playback issues');
-            }
-          };
+          if (audioRef.current) {
+            audioRef.current.onended = null;
+            // Then add the new handler
+            audioRef.current.onended = handleEnded;
+            console.log('Setting up onended handler, about to play audio...');
+            
+            // Add additional event to debug if ended event is not firing
+            audioRef.current.addEventListener('ended', () => {
+              console.log('Audio ended event fired via addEventListener - this is a secondary check');
+            });
+            
+            // Check if the audio element has the expected duration
+            audioRef.current.onloadedmetadata = () => {
+              const audioDuration = audioRef.current?.duration || 0;
+              console.log('Audio metadata loaded, duration:', audioDuration);
+              if (audioDuration === 0) {
+                console.warn('Warning: Audio duration is zero, this may cause playback issues');
+              }
+            };
+          } else {
+            console.error('Audio element is null, cannot set event handlers');
+          }
         } else {
           console.error('Audio element reference is not available');
           throw new Error('Audio player not available');
@@ -369,22 +432,18 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
     } finally {
       setIsLoading(false);
     }
-  }, [content, stopTTS, isPlaying]);
+  }, [content, stopTTS, isPlaying, isIOSSafari]);
 
   // Store the function in the ref so it can be accessed by other functions
   useEffect(() => {
     playTextChunkRef.current = playTextChunk;
   }, [playTextChunk]);
 
-  // This function is used for cleanup
-  const clearPlaybackState = useCallback(() => {
-    setIsPlaying(false);
-  }, []);
-
   // Play TTS for a specific paragraph
   const playTTS = useCallback(async (paragraphId: string): Promise<void> => {
     console.log('playTTS called with paragraph ID:', paragraphId);
     console.log('Current time:', new Date().toISOString());
+    console.log('Is iOS Safari:', isIOSSafari());
     
     if (!audioRef.current) {
       console.error('Audio reference is not available');
@@ -402,47 +461,43 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
       return;
     }
     
-    const paragraphText = content[paragraphIndex].english;
-    console.log('Paragraph text:', paragraphText ? paragraphText.substring(0, 50) + '...' : 'undefined');
-    if (!paragraphText) {
-      console.error('No English text for this paragraph');
-      return;
-    }
-    
-    // No longer need to split the text on the client side as it's handled by the server
-    // Clear any previous chunk state
-    clearPlaybackState();
-    
-    // Important: Set these states before playing to ensure they're updated
+    // Set current paragraph state
     setCurrentParagraphId(paragraphId);
     setCurrentParagraphIndex(paragraphIndex);
     setIsPlaying(true);
     
-    try {
-      // Scroll to the paragraph being read
-      if (paragraphRefs.current.has(paragraphId)) {
-        const paragraphElement = paragraphRefs.current.get(paragraphId);
-        if (paragraphElement) {
-          paragraphElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-      }
+    // Take a different approach for iOS Safari
+    if (isIOSSafari() && !audioInitializedRef.current) {
+      console.log('iOS Safari detected but audio not initialized - trying to initialize');
       
-      // Play the full paragraph text - server will handle chunking
-      if (playTextChunkRef.current) {
-        await playTextChunkRef.current(paragraphText, paragraphIndex);
-      } else {
-        console.error('playTextChunk reference is not available');
+      // For iOS, we need user interaction to initialize audio
+      const silentAudio = new Audio("data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4LjI5LjEwMAAAAAAAAAAAAAAA//tQwAAAAAAAAAAAAAAAAAAAAAAASW5mbwAAAA8AAAACAAABIADAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV6urq6urq6urq6urq6urq6urq6urq6urq6v///////////////////////////////////////////wAAADlMQVZDNTguNTQuMTAwAAAAAAAAAAAUBAj/4QAAMAAAAQAAAQAB//8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP/7UMQAAAppSqVGiACsCH2qVYYAQABkb3duAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVUUAAIAAABkb3duAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVU=");
+      try {
+        await silentAudio.play();
+        audioInitializedRef.current = true;
+        console.log('Silent audio initialized successfully for iOS on-demand');
+      } catch (e) {
+        console.log("Silent audio initialization failed - continuing anyway:", e);
       }
+    }
+    
+    // Extract text from the current paragraph - English only for TTS
+    const text = content[paragraphIndex].english;
+    
+    try {
+      console.log('Starting playback with text length:', text.length);
+      // Play the paragraph using our playTextChunk function
+      await playTextChunkRef.current(text, paragraphIndex);
     } catch (error) {
-      console.error('TTS error:', error);
-      setIsLoading(false);
+      console.error('Error playing paragraph:', error);
+      
+      // Reset state on failure
       stopTTS();
       
-      // Show error message to the user
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      alert(`Speech synthesis failed: ${errorMessage}. Please try again later.`);
+      // Show error message to user - a more user-friendly version
+      alert('朗读失败，请尝试再次点击朗读按钮。在iOS Safari中可能需要多次尝试，或切换到Chrome浏览器获得更好体验。');
     }
-  }, [content, stopTTS, clearPlaybackState, setCurrentParagraphId, setCurrentParagraphIndex, setIsPlaying, paragraphRefs, playTextChunkRef]);
+  }, [content, stopTTS, isIOSSafari]);
 
   // Store the function in the ref so it can be accessed by other functions
   useEffect(() => {
