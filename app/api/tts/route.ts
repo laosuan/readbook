@@ -9,7 +9,8 @@ interface TTSError {
 }
 
 // 常量定义
-const MAX_CHUNK_LENGTH = 800; // 最大文本块长度，超过此长度的文本会被分割
+const MAX_CHUNK_LENGTH = 500; // 最大文本块长度，超过此长度的文本会被分割
+const TTS_TIMEOUT = 10000; // 10 seconds timeout for TTS operations
 
 // 记录所有 Edge TTS 的调用情况，用于调试
 let apiCallCount = 0;
@@ -89,7 +90,7 @@ async function combineAudioChunks(audioChunks: string[]): Promise<string> {
 }
 
 /**
- * 为单个文本块生成语音
+ * 为单个文本块生成语音，带有超时处理
  * @param text 要合成的文本
  * @param voice 语音选项
  * @returns Base64编码的音频
@@ -98,30 +99,38 @@ async function synthesizeTextChunk(text: string, voice: string): Promise<string>
   console.log('Synthesizing chunk with text length:', text.length);
   console.log('Chunk text preview:', text.substring(0, 50) + (text.length > 50 ? '...' : ''));
   
-  // 初始化Edge TTS
-  const tts = new EdgeTTS();
-  
-  try {
-    // 合成语音
-    await tts.synthesize(text, voice, {
-      rate: '0%',  // 中性速率
-      volume: '0%', // 中性音量
-      pitch: '0Hz'  // 中性音调 - 必须在 -100Hz 到 100Hz 范围内
-    });
-    
-    // 获取Base64编码的音频
-    const base64Audio = await tts.toBase64();
-    
-    if (!base64Audio || base64Audio.length === 0) {
-      throw new Error('No audio data generated for chunk');
-    }
-    
-    console.log('Successfully generated base64 audio for chunk, length:', base64Audio.length);
-    return base64Audio;
-  } catch (error) {
-    console.error('Failed to synthesize chunk:', error);
-    throw error;
-  }
+  // Promise with timeout mechanism
+  return Promise.race([
+    (async () => {
+      // 初始化Edge TTS
+      const tts = new EdgeTTS();
+      
+      try {
+        // 合成语音
+        await tts.synthesize(text, voice, {
+          rate: '0%',  // 中性速率
+          volume: '0%', // 中性音量
+          pitch: '0Hz'  // 中性音调 - 必须在 -100Hz 到 100Hz 范围内
+        });
+        
+        // 获取Base64编码的音频
+        const base64Audio = await tts.toBase64();
+        
+        if (!base64Audio || base64Audio.length === 0) {
+          throw new Error('No audio data generated for chunk');
+        }
+        
+        console.log('Successfully generated base64 audio for chunk, length:', base64Audio.length);
+        return base64Audio;
+      } catch (error) {
+        console.error('Failed to synthesize chunk:', error);
+        throw error;
+      }
+    })(),
+    new Promise<string>((_, reject) => 
+      setTimeout(() => reject(new Error('TTS synthesis timeout')), TTS_TIMEOUT)
+    )
+  ]);
 }
 
 // For debugging - expose a GET endpoint to get the last error
@@ -140,7 +149,6 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   apiCallCount++;
   console.log(`TTS API route called (call #${apiCallCount})`, new Date().toISOString());
-  console.log('Request headers:', Object.fromEntries(request.headers.entries()));
   
   try {
     // 解析请求体
@@ -163,177 +171,79 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No text provided' }, { status: 400 });
     }
     
-    // 拆分文本为小块
+    // 拆分文本为小块 - Always split into smaller chunks to prevent timeouts
     const textChunks = splitTextIntoChunks(text);
     console.log(`Split text into ${textChunks.length} chunks for processing`);
     
-    if (textChunks.length === 1) {
-      // 单块文本处理 - 使用现有逻辑
-      console.log('Text is small enough for single chunk processing');
-      
-      console.log('Initializing Edge TTS...', new Date().toISOString());
-      // Initialize Edge TTS
-      console.log('Creating new EdgeTTS instance');
-      const tts = new EdgeTTS();
-      console.log('EdgeTTS instance created successfully');
-      
-      console.log('Synthesizing speech with the updated implementation...');
-      // First attempt - try synthesizing with default options
-      try {
-        console.log(`Call #${apiCallCount} - Starting synthesis`);
-        console.log('Starting speech synthesis with voice:', voice);
-        
-        // Synthesize the text to speech
-        console.log('Calling tts.synthesize with text:', text);
-        console.log('Voice:', voice);
-        try {
-          await tts.synthesize(text, voice, {
-            rate: '0%',  // neutral rate
-            volume: '0%', // neutral volume
-            pitch: '0Hz'  // neutral pitch - must be in range -100Hz to 100Hz
-          });
-          console.log('Speech synthesis completed successfully');
-        } catch (synthError) {
-          console.error('Error during speech synthesis:', synthError);
-          throw synthError;
-        }
-        
-        // Get the audio data as base64
-        console.log('Getting audio as base64...', new Date().toISOString());
-        const base64Audio = await tts.toBase64();
-        
-        // Log the actual result for debugging
-        console.log('Base64 audio received, length:', base64Audio ? base64Audio.length : 0);
-        
-        if (!base64Audio || base64Audio.length === 0) {
-          console.error('Empty base64 audio received');
-          const noAudioError = new Error('No audio data generated');
-          lastError = {
-            message: noAudioError.message,
-            stack: noAudioError.stack,
-            time: new Date().toISOString()
-          };
-          throw noAudioError;
-        }
-        
-        console.log('Successfully generated base64 audio, length:', base64Audio.length);
-        
-        // Return the audio data
-        console.log('Returning successful response with audio data');
-        return NextResponse.json({
-          audio: base64Audio,
-          format: 'mp3',
-          text: text
-        });
-      } catch (firstError) {
-        console.error('First TTS attempt failed:', firstError);
-        
-        // If the first attempt fails, try with a different voice and approach
-        try {
-          console.log('Trying with alternative voice: en-US-GuyNeural');
-          
-          // Create a new instance
-          const altTts = new EdgeTTS();
-          
-          // Try with a different voice and ensure parameters are correct
-          await altTts.synthesize(text, 'en-US-GuyNeural', {
-            rate: '0%',  // correct format for rate
-            volume: '0%', // correct format for volume
-            pitch: '0Hz'  // correct format for pitch
-          });
-          
-          // Get the audio as base64
-          console.log('Getting audio as base64 with alternative voice...');
-          const altBase64 = await altTts.toBase64();
-          console.log('Alternative voice base64 length:', altBase64 ? altBase64.length : 0);
-          
-          if (!altBase64 || altBase64.length === 0) {
-            console.error('Alternative voice also failed to generate audio');
-            
-            // Last resort - try with a fixed voice that we know works
-            console.log('Trying final fallback with en-US-EricNeural...');
-            const finalTts = new EdgeTTS();
-            await finalTts.synthesize(text, 'en-US-EricNeural', {
-              rate: '0%',
-              volume: '0%',
-              pitch: '0Hz'
-            });
-            
-            const finalBase64 = await finalTts.toBase64();
-            console.log('Final fallback base64 length:', finalBase64 ? finalBase64.length : 0);
-            
-            if (!finalBase64 || finalBase64.length === 0) {
-              throw new Error('All voice options failed to generate audio');
-            }
-            
-            console.log('Successfully generated audio with final fallback voice');
-            return NextResponse.json({
-              audio: finalBase64,
-              format: 'mp3',
-              text: text,
-              info: 'Used final fallback voice'
-            });
-          }
-          
-          console.log('Successfully generated audio with alternative voice');
-          return NextResponse.json({
-            audio: altBase64,
-            format: 'mp3',
-            text: text,
-            info: 'Used alternative voice'
-          });
-        } catch (altError) {
-          console.error('All alternative voice attempts failed:', altError);
-          throw new Error('All TTS attempts failed');
-        }
-      }
-    } else {
-      // 多块文本处理 - 需要并行处理每个块并合并结果
+    try {
+      // 无论文本长度如何，总是用并行处理方式来避免超时
       console.log(`Processing ${textChunks.length} chunks in parallel`);
       
+      // 并行处理所有文本块，但限制并发数量防止过载
+      const concurrencyLimit = 3; // 最多同时处理3个块
+      const audioChunks: string[] = [];
+      
+      // 分批处理文本块
+      for (let i = 0; i < textChunks.length; i += concurrencyLimit) {
+        const batch = textChunks.slice(i, i + concurrencyLimit);
+        const batchPromises = batch.map(chunk => synthesizeTextChunk(chunk, voice));
+        const batchResults = await Promise.all(batchPromises);
+        audioChunks.push(...batchResults);
+        console.log(`Processed batch ${i/concurrencyLimit + 1} of ${Math.ceil(textChunks.length/concurrencyLimit)}`);
+      }
+      
+      console.log(`Successfully synthesized ${audioChunks.length} audio chunks`);
+      
+      // 合并所有音频块
+      const combinedAudio = await combineAudioChunks(audioChunks);
+      console.log('Combined audio length:', combinedAudio.length);
+      
+      // 返回合并后的音频数据
+      return NextResponse.json({
+        audio: combinedAudio,
+        format: 'mp3',
+        text: text,
+        info: `Processed in ${textChunks.length} chunks`
+      });
+    } catch (error) {
+      console.error('Error processing chunks:', error);
+      
+      // 尝试使用备用语音和更小的块处理
+      console.log('Attempting to process with fallback voice and smaller chunks');
       try {
-        // 并行处理所有文本块
-        const audioChunksPromises = textChunks.map(chunk => synthesizeTextChunk(chunk, voice));
-        const audioChunks = await Promise.all(audioChunksPromises);
+        // const fallbackVoice = 'en-US-GuyNeural';
+        const fallbackVoice = 'en-US-AvaMultilingualNeural' ;
+        // 进一步分割文本为更小的块
+        const smallerChunks = textChunks.flatMap(chunk => 
+          chunk.length > 250 ? splitTextIntoChunks(chunk) : [chunk]
+        );
         
-        console.log(`Successfully synthesized ${audioChunks.length} audio chunks`);
+        console.log(`Using ${smallerChunks.length} smaller chunks with fallback voice`);
         
-        // 合并所有音频块
-        const combinedAudio = await combineAudioChunks(audioChunks);
-        console.log('Combined audio length:', combinedAudio.length);
+        // 分批处理文本块
+        const concurrencyLimit = 2; // 降低并发数
+        const fallbackAudioChunks: string[] = [];
         
-        // 返回合并后的音频数据
+        for (let i = 0; i < smallerChunks.length; i += concurrencyLimit) {
+          const batch = smallerChunks.slice(i, i + concurrencyLimit);
+          const batchPromises = batch.map(chunk => synthesizeTextChunk(chunk, fallbackVoice));
+          const batchResults = await Promise.all(batchPromises);
+          fallbackAudioChunks.push(...batchResults);
+        }
+        
+        const fallbackCombinedAudio = await combineAudioChunks(fallbackAudioChunks);
+        
         return NextResponse.json({
-          audio: combinedAudio,
+          audio: fallbackCombinedAudio,
           format: 'mp3',
           text: text,
-          info: `Processed in ${textChunks.length} chunks`
+          info: `Processed in ${smallerChunks.length} chunks with fallback voice`
         });
-      } catch (error) {
-        console.error('Error processing multiple chunks:', error);
-        
-        // 尝试使用备用语音
-        console.log('Attempting to process chunks with fallback voice');
-        try {
-          const fallbackVoice = 'en-US-GuyNeural';
-          const fallbackAudioChunksPromises = textChunks.map(chunk => synthesizeTextChunk(chunk, fallbackVoice));
-          const fallbackAudioChunks = await Promise.all(fallbackAudioChunksPromises);
-          
-          const fallbackCombinedAudio = await combineAudioChunks(fallbackAudioChunks);
-          
-          return NextResponse.json({
-            audio: fallbackCombinedAudio,
-            format: 'mp3',
-            text: text,
-            info: `Processed in ${textChunks.length} chunks with fallback voice`
-          });
-        } catch (fallbackError) {
-          console.error('Fallback voice also failed:', fallbackError);
-          throw new Error('Failed to process text chunks with all voice options');
-        }
+      } catch (fallbackError) {
+        console.error('Fallback process also failed:', fallbackError);
+        throw new Error('Failed to process text with all options');
       }
     }
-    
   } catch (error) {
     console.error(`TTS API error (call #${apiCallCount}):`, error);
     // More detailed error message for debugging
