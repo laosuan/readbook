@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { BilingualContent } from '../types';
 import { KeyWord, getVocabularyForParagraph, highlightText } from '../data/vocabulary';
+import Link from 'next/link';
 
 interface BilingualReaderProps {
   content: BilingualContent[];
@@ -22,7 +23,7 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
   // TTS state variables
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [currentParagraphId, setCurrentParagraphId] = useState<string | null>(null);
-  const [currentParagraphIndex, setCurrentParagraphIndex] = useState<number | null>(null);
+  const [, setCurrentParagraphIndex] = useState<number | null>(null);
   const [hoverParagraphId, setHoverParagraphId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -34,6 +35,10 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
   // Use a ref to track the last scroll position
   const lastScrollPositionRef = useRef<number>(0);
   const scrollTimerRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Forward declarations to solve circular references
+  const playTTSRef = useRef<(paragraphId: string) => Promise<void>>(undefined!);
+  const playTextChunkRef = useRef<(text: string, paragraphIndex: number) => Promise<void>>(undefined!);
 
   // Stop TTS completely
   const stopTTS = useCallback(() => {
@@ -208,143 +213,152 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
     };
   }, [stopTTS]);
 
-  const playTextChunk = useCallback(async (
-    text: string, 
-    paragraphIndex: number
-  ) => {
-    console.log('playTextChunk called with text length:', text.length);
+  // Play the next chunk of text from the paragraph
+  const playTextChunk = useCallback(async (text: string, paragraphIndex: number): Promise<void> => {
+    console.log('playTextChunk called with:', { textLength: text.length, paragraphIndex });
     
-    if (!audioRef.current) {
-      console.error('Audio reference is not available in playTextChunk');
+    if (!text || text.trim() === '') {
+      console.error('Empty text provided to playTextChunk');
       return;
     }
     
     setIsLoading(true);
     
     try {
-      console.log('Requesting TTS for text:', text.substring(0, 50) + (text.length > 50 ? '...' : ''));
-      console.log('Sending fetch request to /api/tts');
-      
-      const response = await fetch('/api/tts', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          text: text,
-          voice: 'en-US-AvaMultilingualNeural' // Default voice
-        }),
-      });
-      
-      // Check for HTTP errors
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('TTS API HTTP error:', response.status, errorText);
-        throw new Error(`TTS API error (${response.status}): ${errorText || 'No error details available'}`);
-      }
-      
-      // Parse response data
-      const data = await response.json();
-      console.log('TTS API response received with data');
-      
-      // Validate audio data exists
-      if (!data || !data.audio) {
-        console.error('TTS API response missing audio data:', data);
-        throw new Error('No audio data received from TTS API');
-      }
-      
-      // Create audio source from base64 data
-      const audioSrc = `data:audio/mp3;base64,${data.audio}`;
-      console.log('Audio source created, length:', data.audio.length);
-      
-      // Set up audio playback
       if (audioRef.current) {
-        // Reset audio element before setting new source
-        audioRef.current.pause();
-        audioRef.current.currentTime = 0;
+        console.log('Requesting TTS for text:', text.substring(0, 50) + (text.length > 50 ? '...' : ''));
+        console.log('Sending fetch request to /api/tts');
         
-        // Remove previous event listeners to avoid duplicates
-        audioRef.current.onended = null;
-        const oldElement = audioRef.current;
-        
-        // Create a completely new Audio element to avoid any state issues
-        audioRef.current = new Audio();
-        
-        // Transfer needed event handlers
-        // Re-add global debugging handlers
-        if (oldElement.onerror) audioRef.current.onerror = oldElement.onerror;
-        if (oldElement.oncanplay) audioRef.current.oncanplay = oldElement.oncanplay;
-        if (oldElement.oncanplaythrough) audioRef.current.oncanplaythrough = oldElement.oncanplaythrough;
-        
-        // Set new source
-        audioRef.current.src = audioSrc;
-        
-        console.log('Starting audio playback');
-        
-        // Add a retry mechanism for play
-        let retryCount = 0;
-        const maxRetries = 2;
-        
-        const attemptPlay = async (): Promise<void> => {
-          try {
-            await audioRef.current!.play();
-            console.log('Audio playback started successfully');
-          } catch (playError: unknown) {
-            retryCount++;
-            console.warn(`Play attempt ${retryCount} failed:`, playError);
-            
-            if (retryCount <= maxRetries) {
-              console.log(`Retrying playback (attempt ${retryCount}/${maxRetries})...`);
-              // Wait a moment before retrying
-              await new Promise(resolve => setTimeout(resolve, 300));
-              return attemptPlay();
-            } else {
-              const errorMessage = playError instanceof Error ? playError.message : 'Unknown error';
-              throw new Error(`Audio playback failed after ${maxRetries} attempts: ${errorMessage}`);
-            }
-          }
-        };
-        
-        await attemptPlay();
-        
-        // Set up the ended event for this chunk
-        const handleEnded = () => {
-          console.log('Audio ended event triggered', { isPlaying, paragraphIndex });
-          
-          if (paragraphIndex !== null) {
-            // If this is the last chunk of the paragraph, move to next paragraph
-            const nextIndex = paragraphIndex + 1;
-            console.log('Attempting to play next paragraph', { nextIndex, contentLength: content.length });
-            if (nextIndex < content.length) {
-              const nextParagraph = content[nextIndex];
-              console.log('Playing next paragraph with ID:', nextParagraph.id);
-              playTTS(nextParagraph.id);
-            } else {
-              // End of content
-              console.log('End of content reached, stopping TTS');
-              stopTTS();
-            }
-          }
-        };
-        
-        // Remove any existing onended handler first
-        audioRef.current.onended = null;
-        // Then add the new handler
-        audioRef.current.onended = handleEnded;
-        console.log('Setting up onended handler, about to play audio...');
-        
-        // Add additional event to debug if ended event is not firing
-        audioRef.current.addEventListener('ended', () => {
-          console.log('Audio ended event fired via addEventListener - this is a secondary check');
+        const response = await fetch('/api/tts', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            text: text,
+            voice: 'en-US-AvaMultilingualNeural' // Default voice
+          }),
         });
         
-        // Check if the audio element has the expected duration
-        audioRef.current.onloadedmetadata = () => {
-          console.log('Audio metadata loaded, duration:', audioRef.current?.duration);
-          if (audioRef.current?.duration === 0) {
-            console.warn('Warning: Audio duration is zero, this may cause playback issues');
-          }
-        };
+        // Check for HTTP errors
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('TTS API HTTP error:', response.status, errorText);
+          throw new Error(`TTS API error (${response.status}): ${errorText || 'No error details available'}`);
+        }
+        
+        // Parse response data
+        const data = await response.json();
+        console.log('TTS API response received with data');
+        
+        // Validate audio data exists
+        if (!data || !data.audio) {
+          console.error('TTS API response missing audio data:', data);
+          throw new Error('No audio data received from TTS API');
+        }
+        
+        // Create audio source from base64 data
+        const audioSrc = `data:audio/mp3;base64,${data.audio}`;
+        console.log('Audio source created, length:', data.audio.length);
+        
+        // Set up audio playback
+        if (audioRef.current) {
+          // Reset audio element before setting new source
+          audioRef.current.pause();
+          audioRef.current.currentTime = 0;
+          
+          // Remove previous event listeners to avoid duplicates
+          audioRef.current.onended = null;
+          const oldElement = audioRef.current;
+          
+          // Create a completely new Audio element to avoid any state issues
+          audioRef.current = new Audio();
+          
+          // Transfer needed event handlers
+          // Re-add global debugging handlers
+          if (oldElement.onerror) audioRef.current.onerror = oldElement.onerror;
+          if (oldElement.oncanplay) audioRef.current.oncanplay = oldElement.oncanplay;
+          if (oldElement.oncanplaythrough) audioRef.current.oncanplaythrough = oldElement.oncanplaythrough;
+          
+          // Set new source
+          audioRef.current.src = audioSrc;
+          
+          console.log('Starting audio playback');
+          
+          // Add a retry mechanism for play
+          let retryCount = 0;
+          const maxRetries = 2;
+          
+          const attemptPlay = async (): Promise<void> => {
+            try {
+              await audioRef.current!.play();
+              console.log('Audio playback started successfully');
+            } catch (playError: unknown) {
+              retryCount++;
+              console.warn(`Play attempt ${retryCount} failed:`, playError);
+              
+              if (retryCount <= maxRetries) {
+                console.log(`Retrying playback (attempt ${retryCount}/${maxRetries})...`);
+                // Wait a moment before retrying
+                await new Promise(resolve => setTimeout(resolve, 300));
+                return attemptPlay();
+              } else {
+                const errorMessage = playError instanceof Error ? playError.message : 'Unknown error';
+                throw new Error(`Audio playback failed after ${maxRetries} attempts: ${errorMessage}`);
+              }
+            }
+          };
+          
+          await attemptPlay();
+          
+          // Set up the ended event for this chunk
+          const handleEnded = () => {
+            console.log('Audio ended event triggered', { isPlaying, paragraphIndex });
+            
+            if (paragraphIndex !== null) {
+              // If this is the last chunk of the paragraph, move to next paragraph
+              const nextIndex = paragraphIndex + 1;
+              console.log('Attempting to play next paragraph', { nextIndex, contentLength: content.length });
+              if (nextIndex < content.length) {
+                const nextParagraph = content[nextIndex];
+                console.log('Playing next paragraph with ID:', nextParagraph.id);
+                setCurrentParagraphId(nextParagraph.id);
+                setCurrentParagraphIndex(nextIndex);
+                if (playTTSRef.current) {
+                  playTTSRef.current(nextParagraph.id);
+                } else {
+                  console.error('playTTS reference is not available');
+                }
+              } else {
+                // End of content
+                console.log('End of content reached, stopping TTS');
+                stopTTS();
+              }
+            }
+          };
+          
+          // Remove any existing onended handler first
+          audioRef.current.onended = null;
+          // Then add the new handler
+          audioRef.current.onended = handleEnded;
+          console.log('Setting up onended handler, about to play audio...');
+          
+          // Add additional event to debug if ended event is not firing
+          audioRef.current.addEventListener('ended', () => {
+            console.log('Audio ended event fired via addEventListener - this is a secondary check');
+          });
+          
+          // Check if the audio element has the expected duration
+          audioRef.current.onloadedmetadata = () => {
+            console.log('Audio metadata loaded, duration:', audioRef.current?.duration);
+            if (audioRef.current?.duration === 0) {
+              console.warn('Warning: Audio duration is zero, this may cause playback issues');
+            }
+          };
+        } else {
+          console.error('Audio element reference is not available');
+          throw new Error('Audio player not available');
+        }
       } else {
         console.error('Audio element reference is not available');
         throw new Error('Audio player not available');
@@ -355,17 +369,20 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
     } finally {
       setIsLoading(false);
     }
-  }, [content, stopTTS]);
+  }, [content, stopTTS, isPlaying]);
 
-  // Play the next chunk of the current paragraph
-  // This function is no longer needed as the server handles text chunking
-  // We'll use this for cleanup
+  // Store the function in the ref so it can be accessed by other functions
+  useEffect(() => {
+    playTextChunkRef.current = playTextChunk;
+  }, [playTextChunk]);
+
+  // This function is used for cleanup
   const clearPlaybackState = useCallback(() => {
     setIsPlaying(false);
   }, []);
 
   // Play TTS for a specific paragraph
-  const playTTS = useCallback(async (paragraphId: string) => {
+  const playTTS = useCallback(async (paragraphId: string): Promise<void> => {
     console.log('playTTS called with paragraph ID:', paragraphId);
     console.log('Current time:', new Date().toISOString());
     
@@ -411,7 +428,11 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
       }
       
       // Play the full paragraph text - server will handle chunking
-      await playTextChunk(paragraphText, paragraphIndex);
+      if (playTextChunkRef.current) {
+        await playTextChunkRef.current(paragraphText, paragraphIndex);
+      } else {
+        console.error('playTextChunk reference is not available');
+      }
     } catch (error) {
       console.error('TTS error:', error);
       setIsLoading(false);
@@ -421,7 +442,12 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       alert(`Speech synthesis failed: ${errorMessage}. Please try again later.`);
     }
-  }, [content, stopTTS, playTextChunk, setCurrentParagraphId, setCurrentParagraphIndex, clearPlaybackState, setIsPlaying, paragraphRefs]);
+  }, [content, stopTTS, clearPlaybackState, setCurrentParagraphId, setCurrentParagraphIndex, setIsPlaying, paragraphRefs, playTextChunkRef]);
+
+  // Store the function in the ref so it can be accessed by other functions
+  useEffect(() => {
+    playTTSRef.current = playTTS;
+  }, [playTTS]);
 
   // Pause TTS
   const pauseTTS = useCallback(() => {
@@ -440,12 +466,16 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
       setIsPlaying(true);
     } else if (currentParagraphId) {
       // If we can't resume, restart from current paragraph
-      playTTS(currentParagraphId);
+      if (playTTSRef.current) {
+        playTTSRef.current(currentParagraphId);
+      } else {
+        console.error('playTTS reference is not available');
+      }
     }
-  }, [currentParagraphId, playTTS]);
+  }, [currentParagraphId, playTTSRef]);
 
   // Add tap-to-play functionality for paragraphs
-  const handleParagraphTap = useCallback((paragraphId: string, event: React.MouseEvent) => {
+  const handleParagraphTap = useCallback((paragraphId: string) => {
     // Prevent tap-to-play on desktop if using the hover button
     if (window.innerWidth > 768 && hoverParagraphId === paragraphId) {
       return;
@@ -454,13 +484,21 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
     // Don't play if already playing this paragraph
     if (currentParagraphId === paragraphId) {
       // Toggle play/pause instead
-      isPlaying ? pauseTTS() : resumeTTS();
+      if (isPlaying) {
+        pauseTTS();
+      } else {
+        resumeTTS();
+      }
       return;
     }
     
     // Start playing from this paragraph
-    playTTS(paragraphId);
-  }, [currentParagraphId, hoverParagraphId, isPlaying, pauseTTS, playTTS, resumeTTS]);
+    if (playTTSRef.current) {
+      playTTSRef.current(paragraphId);
+    } else {
+      console.error('playTTS reference is not available');
+    }
+  }, [currentParagraphId, hoverParagraphId, isPlaying, pauseTTS, resumeTTS, playTTSRef]);
 
   // Set up intersection observer to track visible paragraphs
   useEffect(() => {
@@ -718,9 +756,9 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
       {/* Mobile-optimized header navigation */}
       <div className="mobile-nav md:hidden bg-secondary-100 dark:bg-secondary-900 -mx-4 px-4 mb-4">
-        <a href="/" className="text-primary-600 dark:text-primary-400 mr-2">首页</a>
+        <Link href="/" className="text-primary-600 dark:text-primary-400 mr-2">首页</Link>
         <span className="text-secondary-400 mx-1">/</span>
-        <a href="/library" className="text-primary-600 dark:text-primary-400 mr-2">书库</a>
+        <Link href="/library" className="text-primary-600 dark:text-primary-400 mr-2">书库</Link>
         <span className="text-secondary-400 mx-1">/</span>
         <span className="text-secondary-600 dark:text-secondary-400 truncate">{chapterTitle}</span>
       </div>
@@ -894,7 +932,7 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
                     className="relative group mb-2"
                     onMouseEnter={() => setHoverParagraphId(item.id)}
                     onMouseLeave={() => setHoverParagraphId(null)}
-                    onClick={(e) => handleParagraphTap(item.id, e)}
+                    onClick={() => handleParagraphTap(item.id)}
                   >
                     <p className="text-secondary-900 dark:text-secondary-100 leading-relaxed">
                       {isVocabBook && showVocabulary ? (
@@ -913,18 +951,32 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
                     {/* Play button that appears on hover - only on desktop */}
                     {hoverParagraphId === item.id && !isPlaying && currentParagraphId !== item.id && (
                       <button 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          playTTS(item.id);
+                        onClick={() => {
+                          handleParagraphTap(item.id);
                         }}
                         className="absolute right-0 top-0 bg-primary-100 text-primary-600 dark:bg-primary-900 dark:text-primary-300 rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 hidden md:block"
                         aria-label="Play paragraph"
                         title="从此段开始朗读"
                       >
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="black" strokeWidth={2}>
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="black" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                          </svg>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                        </svg>
+                      </button>
+                    )}
+                    
+                    {/* Add play/pause button for currently playing paragraph */}
+                    {currentParagraphId === item.id && isPlaying && (
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          pauseTTS();
+                        }}
+                        className="absolute right-0 top-0 bg-primary-100 text-primary-600 dark:bg-primary-900 dark:text-primary-300 rounded-full p-1 opacity-80 group-hover:opacity-100 transition-opacity duration-200 z-10"
+                        aria-label="Pause paragraph"
+                        title="暂停朗读"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="black" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M10 9v6m4-6v6" />
                         </svg>
                       </button>
                     )}
