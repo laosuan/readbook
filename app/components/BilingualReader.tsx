@@ -548,7 +548,7 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
     };
   }, [visibleParagraphs, showVocabulary, bookId, vocabularyItems, currentChapterInfo]);
 
-  // Add CSS for the pulse animation
+  // Add CSS for the pulse animation and mobile optimizations
   useEffect(() => {
     // Add the CSS animation for the current paragraph indicator
     if (typeof document !== 'undefined') {
@@ -562,6 +562,57 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
         .pulse-animation {
           animation: pulse 2s infinite ease-in-out;
         }
+        
+        /* Mobile optimization styles */
+        @media (max-width: 768px) {
+          .mobile-compact-header {
+            padding: 0.5rem 0;
+          }
+          .mobile-nav {
+            font-size: 0.875rem;
+            display: flex;
+            align-items: center;
+            padding: 0.5rem 0;
+            overflow-x: auto;
+            white-space: nowrap;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+          }
+          .mobile-nav::-webkit-scrollbar {
+            display: none;
+          }
+          .mobile-controls {
+            flex-wrap: wrap;
+            gap: 0.5rem;
+          }
+          .mobile-controls > button {
+            padding: 0.375rem 0.625rem;
+            font-size: 0.75rem;
+          }
+          .mobile-vocabulary-toggle {
+            position: fixed;
+            bottom: 1rem;
+            right: 1rem;
+            z-index: 50;
+            border-radius: 9999px;
+            padding: 0.75rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+          }
+          .mobile-vocabulary-panel {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            max-height: 40vh;
+            z-index: 40;
+            border-top-left-radius: 1rem;
+            border-top-right-radius: 1rem;
+            box-shadow: 0 -4px 6px rgba(0, 0, 0, 0.1);
+            overflow-y: auto;
+            opacity: 1;
+            backdrop-filter: blur(8px);
+          }
+        }
       `;
       document.head.appendChild(style);
       
@@ -570,10 +621,28 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
       };
     }
   }, []);
+
+  // Add state for mobile vocabulary panel
+  const [showMobileVocabulary, setShowMobileVocabulary] = useState<boolean>(false);
+  
+  // Toggle mobile vocabulary panel
+  const toggleMobileVocabulary = useCallback(() => {
+    setShowMobileVocabulary(prev => !prev);
+  }, []);
   
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="mb-6 flex justify-between items-center">
+    <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
+      {/* Mobile-optimized header navigation */}
+      <div className="mobile-nav md:hidden bg-secondary-100 dark:bg-secondary-900 -mx-4 px-4 mb-4">
+        <a href="/" className="text-primary-600 dark:text-primary-400 mr-2">首页</a>
+        <span className="text-secondary-400 mx-1">/</span>
+        <a href="/library" className="text-primary-600 dark:text-primary-400 mr-2">书库</a>
+        <span className="text-secondary-400 mx-1">/</span>
+        <span className="text-secondary-600 dark:text-secondary-400 truncate">{chapterTitle}</span>
+      </div>
+      
+      {/* Desktop header - hidden on mobile */}
+      <div className="mb-6 hidden md:flex justify-between items-center">
         <h1 className="text-2xl font-serif font-bold text-secondary-900 dark:text-secondary-100">{chapterTitle}</h1>
         <div className="flex items-center space-x-4">
           <div className="flex items-center space-x-2">
@@ -644,7 +713,7 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
           
           <button
             onClick={toggleLanguage}
-            className="px-3 py-1 rounded-md bg-primary-600 dark:bg-primary-500 dark:bg-secondary-800 text-secondary-700 text-sm hover:bg-primary-700 dark:hover:bg-primary-600 mr-2"
+            className="px-3 py-1 rounded-md bg-primary-600 dark:bg-primary-500 dark:bg-secondary-800 text-white dark:text-secondary-200 text-sm hover:bg-primary-700 dark:hover:bg-primary-600 mr-2"
           >
             {showBoth ? '仅显示英文' : showEnglish ? '仅显示中文' : '双语对照'}
           </button>
@@ -658,8 +727,67 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
           )}
         </div>
       </div>
+      
+      {/* Mobile controls - visible only on mobile */}
+      <div className="md:hidden mb-4">
+        <div className="flex justify-between items-center mb-3">
+          <h1 className="text-xl font-serif font-bold text-secondary-900 dark:text-secondary-100 truncate">{chapterTitle}</h1>
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={decreaseFontSize}
+              className="p-1 rounded-md text-secondary-600 dark:text-secondary-400 hover:bg-secondary-100 dark:hover:bg-secondary-800"
+              aria-label="Decrease font size"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M5 10a1 1 0 011-1h8a1 1 0 110 2H6a1 1 0 01-1-1z" clipRule="evenodd" />
+              </svg>
+            </button>
+            <span className="text-xs text-secondary-600 dark:text-secondary-400">{fontSize}px</span>
+            <button
+              onClick={increaseFontSize}
+              className="p-1 rounded-md text-secondary-600 dark:text-secondary-400 hover:bg-secondary-100 dark:hover:bg-secondary-800"
+              aria-label="Increase font size"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 01-1 1h-3a1 1 0 110-2h3V8a1 1 0 011-1v3z" clipRule="evenodd" />
+              </svg>
+            </button>
+          </div>
+        </div>
+        
+        <div className="mobile-controls flex flex-wrap gap-2">
+          <button
+            onClick={toggleLanguage}
+            className="flex-1 px-2 py-1 rounded-md bg-primary-600 dark:bg-primary-500 dark:bg-secondary-800 text-white dark:text-secondary-200 text-xs hover:bg-primary-700 dark:hover:bg-primary-600"
+          >
+            {showBoth ? '仅英文' : showEnglish ? '仅中文' : '双语'}
+          </button>
+          
+          {currentParagraphId && (
+            <div className="flex items-center space-x-1">
+              {isLoading && (
+                <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-primary-600 dark:border-primary-300"></div>
+              )}
+              <button
+                onClick={() => isPlaying ? pauseTTS() : resumeTTS()}
+                className="px-2 py-1 rounded-md bg-primary-100 text-primary-600 dark:bg-primary-900 dark:text-primary-300 hover:bg-primary-200 dark:hover:bg-primary-800 disabled:opacity-50 text-xs"
+                disabled={isLoading}
+              >
+                {isPlaying ? "暂停" : "播放"}
+              </button>
+              <button
+                onClick={stopTTS}
+                className="px-2 py-1 rounded-md bg-secondary-100 text-secondary-600 dark:bg-secondary-800 dark:text-secondary-300 hover:bg-secondary-200 dark:hover:bg-secondary-700 disabled:opacity-50 text-xs"
+                disabled={isLoading}
+              >
+                停止
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
 
-      <div className="flex gap-10">  
+      <div className="flex md:gap-10">  
         <div className="prose prose-lg flex-grow" style={{ fontSize: `${fontSize}px` }}>
           {content.map((item) => {
             // Only load vocabulary for bookId 8
@@ -667,13 +795,6 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
             // Use vocabulary from state instead of fetching it directly
             const vocabulary = isVocabBook && showVocabulary ? vocabularyItems[item.id] || [] : [];
             const hasVocabulary = vocabulary.length > 0;
-            
-            // Debug: uncomment to help track paragraph IDs with missing vocabulary
-            // useEffect(() => {
-            //   if (isVocabBook && showVocabulary && item.id === '8-1-1-24' && !hasVocabulary) {
-            //     // Removed vocabulary debug log
-            //   }
-            // }, [item.id, hasVocabulary, isVocabBook, showVocabulary]);
             
             return (
               <div 
@@ -692,14 +813,10 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
                       {isVocabBook && showVocabulary ? (
                         vocabulary.length > 0 ? (
                           <>
-                            {/* Add debug comment for development */}
-                            {/* <small className="text-xs text-gray-500">[DEBUG: {item.id} has {vocabulary.length} vocab items]</small> */}
                             {highlightText(item.english, vocabulary, true)}
                           </>
                         ) : (
                           <>
-                            {/* Add debug comment for development */}
-                            {/* <small className="text-xs text-gray-500">[DEBUG: No vocab for {item.id}]</small> */}
                             {item.english}
                           </>
                         )
@@ -710,16 +827,8 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
                     {hoverParagraphId === item.id && !isPlaying && currentParagraphId !== item.id && (
                       <button 
                         onClick={(e) => {
-                          console.log('PLAY BUTTON CLICKED for paragraph:', item.id);
-                          console.log('playTTS function exists:', typeof playTTS === 'function');
-                          console.log('Event target:', e.target);
-                          e.stopPropagation(); // 防止事件冒泡
-                          try {
-                            playTTS(item.id);
-                            console.log('playTTS call completed');
-                          } catch (error) {
-                            console.error('Error calling playTTS:', error);
-                          }
+                          e.stopPropagation();
+                          playTTS(item.id);
                         }}
                         className="absolute right-0 top-0 bg-primary-100 text-primary-600 dark:bg-primary-900 dark:text-primary-300 rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
                         aria-label="Play paragraph"
@@ -742,14 +851,10 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
                     {isVocabBook && showVocabulary ? (
                       vocabulary.length > 0 ? (
                         <>
-                          {/* Add debug comment for development */}
-                          {/* <small className="text-xs text-gray-500">[DEBUG: {item.id} has {vocabulary.length} vocab items]</small> */}
                           {highlightText(item.chinese, vocabulary, false)}
                         </>
                       ) : (
                         <>
-                          {/* Add debug comment for development */}
-                          {/* <small className="text-xs text-gray-500">[DEBUG: No vocab for {item.id}]</small> */}
                           {item.chinese}
                         </>
                       )
@@ -761,9 +866,9 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
           })}
         </div>
         
-        {/* Fixed Vocabulary sidebar */}
+        {/* Desktop Vocabulary sidebar - hidden on mobile */}
         {showVocabulary && Object.keys(vocabularyItems).length > 0 && (
-          <div className="w-64 shrink-0 border-l border-secondary-200 dark:border-secondary-800 pl-6 ml-2 sticky top-8 max-h-screen overflow-y-auto pb-8">
+          <div className="hidden md:block w-64 shrink-0 border-l border-secondary-200 dark:border-secondary-800 pl-6 ml-2 sticky top-8 max-h-screen overflow-y-auto pb-8">
             <h3 className="text-lg font-medium mb-3 text-secondary-900 dark:text-secondary-100 sticky top-0 border-secondary-200 dark:bg-secondary-950 py-2">重点词汇</h3>
             <div className="space-y-4">
               {/* Show all vocabulary items from all currently visible paragraphs */}
@@ -781,8 +886,6 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
                   // Map each paragraph to its vocabulary display
                   .map(paragraphId => (
                     <div key={paragraphId} className="border-b border-secondary-200 dark:border-secondary-800 pb-3">
-                      {/* Display paragraph number for reference */}
-                      {/* <div className="text-xs text-secondary-500 dark:text-secondary-400 mb-1">段落 {paragraphId.split('-')[3]}</div> */}
                       <ul className="space-y-2">
                         {vocabularyItems[paragraphId].map((word, index) => (
                           <li key={index} className="p-2 bg-secondary-50 dark:bg-secondary-800 rounded">
@@ -800,6 +903,57 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
           </div>
         )}
       </div>
+      
+      {/* Mobile vocabulary floating button - only on mobile and when vocabulary is available */}
+      {(bookId === '8') && showVocabulary && Object.keys(vocabularyItems).length > 0 && (
+        <button 
+          onClick={toggleMobileVocabulary}
+          className="md:hidden mobile-vocabulary-toggle bg-yellow-400 dark:bg-yellow-600 text-secondary-900 dark:text-secondary-100"
+        >
+          {showMobileVocabulary ? (
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M5 10a1 1 0 011-1h8a1 1 0 110 2H6a1 1 0 01-1-1z" clipRule="evenodd" />
+            </svg>
+          ) : (
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+              <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
+            </svg>
+          )}
+        </button>
+      )}
+      
+      {/* Mobile vocabulary bottom panel */}
+      {showMobileVocabulary && showVocabulary && Object.keys(vocabularyItems).length > 0 && (
+        <div className="md:hidden mobile-vocabulary-panel bg-secondary-50 dark:bg-secondary-900 p-4" style={{ backgroundColor: 'var(--bg-secondary-50, #f9fafb)', opacity: 1 }}>
+          {/* <h3 className="text-base font-medium mb-3 text-secondary-900 dark:text-secondary-100 sticky top-0 bg-secondary-50 dark:bg-secondary-900 py-2">重点词汇</h3> */}
+          <div className="space-y-3">
+            {visibleParagraphs.size > 0 ? (
+              Array.from(visibleParagraphs)
+                .sort((a, b) => {
+                  const aNum = parseInt(a.split('-')[3], 10);
+                  const bNum = parseInt(b.split('-')[3], 10);
+                  return aNum - bNum;
+                })
+                .filter(paragraphId => vocabularyItems[paragraphId] && vocabularyItems[paragraphId].length > 0)
+                .map(paragraphId => (
+                  <div key={paragraphId} className="border-b border-secondary-200 dark:border-secondary-800 pb-2">
+                    <ul className="space-y-2">
+                      {vocabularyItems[paragraphId].map((word, index) => (
+                        <li key={index} className="p-2 bg-white dark:bg-secondary-800 rounded shadow-sm">
+                          <div className="font-medium text-secondary-900 dark:text-secondary-100">{word.raw_en} - {word.raw_cn}</div>
+                          <div className="text-xs text-secondary-600 dark:text-secondary-400">{word.en} - {word.cn}</div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))
+            ) : (
+              <div className="text-secondary-500 dark:text-secondary-400 italic">当前没有可见的段落词汇</div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 } 
