@@ -28,11 +28,6 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   
-  // Text chunk handling for long paragraphs
-  const [textChunks, setTextChunks] = useState<string[]>([]);
-  const [currentChunkIndex, setCurrentChunkIndex] = useState<number>(0);
-  // Use a ref to store chunks to prevent loss during state updates
-  const textChunksRef = useRef<string[]>([]);
   // Constants
   const MAX_CHUNK_LENGTH = 300; // Maximum characters per chunk
   
@@ -53,8 +48,7 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
     setCurrentParagraphId(null);
     setCurrentParagraphIndex(null);
     setIsLoading(false);
-    setTextChunks([]);
-    setCurrentChunkIndex(0);
+    setIsPlaying(false);
   }, []);
 
   const increaseFontSize = () => {
@@ -172,75 +166,15 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
     };
   }, [content.length, currentParagraphIndex, isPlaying, stopTTS]);
   
-  // Function to get all paragraph text content
-  // This function is kept for future use but currently not being used
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const getAllParagraphsEnglishContent = useCallback(() => {
-    const allContent: { id: string; text: string }[] = [];
-    content.forEach((item) => {
-      allContent.push({ id: item.id, text: item.english });
-    });
-    return allContent;
-  }, [content]);
-  
-  // Split text into manageable chunks
-  const splitTextIntoChunks = useCallback((text: string): string[] => {
-    if (text.length <= MAX_CHUNK_LENGTH) {
-      return [text];
-    }
-    
-    const chunks: string[] = [];
-    let start = 0;
-    
-    while (start < text.length) {
-      let end = Math.min(start + MAX_CHUNK_LENGTH, text.length);
-      
-      // Try to find sentence boundaries for more natural splitting
-      if (end < text.length) {
-        const sentenceEndings = ['. ', '! ', '? ', '; ']; // Potential sentence endings
-        let bestBreakPoint = end;
-        
-        // Look back from the max length to find a good sentence ending
-        for (let i = end; i > Math.max(start + 100, end - 100); i--) { // Don't look back more than 100 chars
-          const twoChars = text.substring(i - 1, i + 1);
-          if (sentenceEndings.some(ending => ending === twoChars)) {
-            bestBreakPoint = i + 1; // Include the space after the period
-            break;
-          }
-        }
-        
-        // If no good sentence ending found, look for a space
-        if (bestBreakPoint === end) {
-          const lastSpace = text.lastIndexOf(' ', end);
-          if (lastSpace > start + 100) { // Ensure we don't create tiny chunks
-            bestBreakPoint = lastSpace + 1; // Include the space
-          }
-        }
-        
-        end = bestBreakPoint;
-      }
-      
-      chunks.push(text.substring(start, end));
-      start = end;
-    }
-    
-    // Store the chunks in ref for reliable access
-    textChunksRef.current = chunks;
-    console.log('Split text into chunks:', chunks.length, 'chunks');
-    return chunks;
-  }, [MAX_CHUNK_LENGTH]);
-  
   // Type declaration for audio handler function to avoid circular dependency
   type PlayNextChunkFn = () => void;
   
   // Play a specific chunk of text
   const playTextChunk = useCallback(async (
     text: string, 
-    isLastChunk: boolean, 
-    paragraphIndex: number,
-    nextChunkCallback: PlayNextChunkFn
+    paragraphIndex: number
   ) => {
-    console.log('playTextChunk called with text length:', text.length, 'isLastChunk:', isLastChunk);
+    console.log('playTextChunk called with text length:', text.length);
     
     if (!audioRef.current) {
       console.error('Audio reference is not available in playTextChunk');
@@ -250,7 +184,7 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
     setIsLoading(true);
     
     try {
-      console.log('Requesting TTS for chunk:', text.substring(0, 50) + (text.length > 50 ? '...' : ''));
+      console.log('Requesting TTS for text:', text.substring(0, 50) + (text.length > 50 ? '...' : ''));
       console.log('Sending fetch request to /api/tts');
       
       const response = await fetch('/api/tts', {
@@ -337,30 +271,21 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
         
         // Set up the ended event for this chunk
         const handleEnded = () => {
-          console.log('Audio ended event triggered', { isLastChunk, paragraphIndex, isPlaying });
+          console.log('Audio ended event triggered', { isPlaying, paragraphIndex });
           
-          if (isLastChunk) {
+          if (paragraphIndex !== null) {
             // If this is the last chunk of the paragraph, move to next paragraph
-            if (paragraphIndex !== null) {
-              const nextIndex = paragraphIndex + 1;
-              console.log('Attempting to play next paragraph', { nextIndex, contentLength: content.length });
-              if (nextIndex < content.length) {
-                const nextParagraph = content[nextIndex];
-                console.log('Playing next paragraph with ID:', nextParagraph.id);
-                playTTS(nextParagraph.id);
-              } else {
-                // End of content
-                console.log('End of content reached, stopping TTS');
-                stopTTS();
-              }
+            const nextIndex = paragraphIndex + 1;
+            console.log('Attempting to play next paragraph', { nextIndex, contentLength: content.length });
+            if (nextIndex < content.length) {
+              const nextParagraph = content[nextIndex];
+              console.log('Playing next paragraph with ID:', nextParagraph.id);
+              playTTS(nextParagraph.id);
+            } else {
+              // End of content
+              console.log('End of content reached, stopping TTS');
+              stopTTS();
             }
-          } else {
-            // Play the next chunk of the current paragraph
-            console.log('Not last chunk, playing next chunk');
-            // Use setTimeout to ensure this runs after the current call stack is cleared
-            setTimeout(() => {
-              nextChunkCallback();
-            }, 50); // Small delay to ensure state is updated
           }
         };
         
@@ -395,50 +320,12 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
   }, [content, stopTTS]);
   
   // Play the next chunk of the current paragraph
-  const playNextChunk = useCallback(() => {
-    console.log('playNextChunk called');
-    console.log('textChunksRef has', textChunksRef.current.length, 'chunks');
-    
-    // Use a function to access the most up-to-date state values
-    // But rely on the ref for chunk data to avoid state update issues
-    setCurrentChunkIndex(prevChunkIndex => {
-      console.log('Current state values:', {
-        currentChunkIndex: prevChunkIndex,
-        totalChunks: textChunksRef.current.length,
-        hasMoreChunks: prevChunkIndex < textChunksRef.current.length - 1
-      });
-      
-      if (prevChunkIndex < textChunksRef.current.length - 1) {
-        const nextChunkIndex = prevChunkIndex + 1;
-        const isLastChunk = nextChunkIndex === textChunksRef.current.length - 1;
-        console.log(`Playing next chunk (${nextChunkIndex + 1}/${textChunksRef.current.length})`);
-        
-        // Important: Play the next chunk BEFORE updating state
-        try {
-          // Capture chunk text variable first to avoid race conditions
-          const nextChunkText = textChunksRef.current[nextChunkIndex];
-          console.log('Next chunk text (preview):', nextChunkText.substring(0, 30) + '...');
-          
-          // Play the chunk
-          playTextChunk(nextChunkText, isLastChunk, currentParagraphIndex!, playNextChunk).catch((error: unknown) => {
-            console.error('Error playing next chunk:', error);
-            stopTTS();
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-            alert(`Failed to play next chunk: ${errorMessage}`);
-          });
-        } catch (error) {
-          console.error('Error in playNextChunk:', error);
-        }
-        
-        // Return the new chunk index to update the state
-        return nextChunkIndex;
-      } else {
-        console.log('No more chunks to play in this paragraph');
-        return prevChunkIndex; // Keep the current index if we can't advance
-      }
-    });
-  }, [playTextChunk, currentParagraphIndex, stopTTS]);
-
+  // This function is no longer needed as the server handles text chunking
+  // We'll use this for cleanup
+  const clearPlaybackState = useCallback(() => {
+    setIsPlaying(false);
+  }, []);
+  
   // Play TTS for a specific paragraph
   const playTTS = useCallback(async (paragraphId: string) => {
     console.log('playTTS called with paragraph ID:', paragraphId);
@@ -467,13 +354,9 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
       return;
     }
     
-    // Split the paragraph text into chunks if it's long
-    const chunks = splitTextIntoChunks(paragraphText);
-    setTextChunks(chunks);
-    // Ensure chunk data is also in the ref
-    textChunksRef.current = chunks;
-    console.log('Set textChunks and textChunksRef with', chunks.length, 'chunks');
-    setCurrentChunkIndex(0);
+    // No longer need to split the text on the client side as it's handled by the server
+    // Clear any previous chunk state
+    clearPlaybackState();
     
     // Important: Set these states before playing to ensure they're updated
     setCurrentParagraphId(paragraphId);
@@ -489,9 +372,8 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
         }
       }
       
-      // Play the first chunk
-      const isLastChunk = chunks.length === 1;
-      await playTextChunk(chunks[0], isLastChunk, paragraphIndex, playNextChunk);
+      // Play the full paragraph text - server will handle chunking
+      await playTextChunk(paragraphText, paragraphIndex);
     } catch (error) {
       console.error('TTS error:', error);
       setIsLoading(false);
@@ -501,11 +383,7 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       alert(`Speech synthesis failed: ${errorMessage}. Please try again later.`);
     }
-  }, [content, stopTTS, splitTextIntoChunks, playTextChunk, setTextChunks, setCurrentChunkIndex, setCurrentParagraphId, setCurrentParagraphIndex, setIsPlaying, paragraphRefs]);
-  
-  
-  // These functions are no longer needed with the server-side approach
-  // The audio element's 'onended' event handles moving to the next paragraph
+  }, [content, stopTTS, playTextChunk, setCurrentParagraphId, setCurrentParagraphIndex, clearPlaybackState, setIsPlaying, paragraphRefs]);
   
   // Pause TTS
   const pauseTTS = useCallback(() => {
@@ -528,8 +406,6 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
     }
   }, [currentParagraphId, playTTS]);
   
-  // stopTTS function moved to the top of the component
-
   // Set up intersection observer to track visible paragraphs
   useEffect(() => {
     if (typeof window === 'undefined' || !showVocabulary || bookId !== '8') return;
