@@ -153,7 +153,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 });
     }
     
-    var { text, voice = 'en-US-AriaNeural' } = requestBody;
+    const { voice = 'en-US-AriaNeural' } = requestBody;
+    let { text } = requestBody;
     text = text.replace(/\n/g, ' ');
     console.log('Request received with text:', text && text.substring(0, 50) + '...');
     

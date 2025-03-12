@@ -28,9 +28,6 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   
-  // Constants
-  const MAX_CHUNK_LENGTH = 300; // Maximum characters per chunk
-  
   // Stop TTS completely
   const stopTTS = useCallback(() => {
     console.log('Stopping TTS playback');
@@ -165,9 +162,6 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
       }
     };
   }, [content.length, currentParagraphIndex, isPlaying, stopTTS]);
-  
-  // Type declaration for audio handler function to avoid circular dependency
-  type PlayNextChunkFn = () => void;
   
   // Play a specific chunk of text
   const playTextChunk = useCallback(async (
