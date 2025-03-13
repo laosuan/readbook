@@ -530,9 +530,14 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
   }, [currentParagraphId, playTTSRef]);
 
   // Add tap-to-play functionality for paragraphs
-  const handleParagraphTap = useCallback((paragraphId: string) => {
-    // Prevent tap-to-play on desktop if using the hover button
-    if (window.innerWidth > 768 && hoverParagraphId === paragraphId) {
+  const handleParagraphTap = useCallback((paragraphId: string, event?: React.MouseEvent<HTMLElement>) => {
+    // The hover button is explicitly clicked, so we should NOT prevent playback
+    // This check was preventing the hover button from working on desktop
+    // Only prevent automatic paragraph taps (not button clicks) on desktop
+    const isHoverButtonClick = window.innerWidth > 768 && hoverParagraphId === paragraphId && event?.type === 'click';
+    
+    // If it's a paragraph tap (not button click) on desktop, ignore it
+    if (window.innerWidth > 768 && hoverParagraphId === paragraphId && !isHoverButtonClick) {
       return;
     }
     
@@ -987,7 +992,7 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
                     className="relative group mb-2"
                     onMouseEnter={() => setHoverParagraphId(item.id)}
                     onMouseLeave={() => setHoverParagraphId(null)}
-                    onClick={() => handleParagraphTap(item.id)}
+                    onClick={(e) => handleParagraphTap(item.id, e)}
                   >
                     <p className="text-secondary-900 dark:text-secondary-100 leading-relaxed">
                       {isVocabBook && showVocabulary ? (
@@ -1006,8 +1011,8 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
                     {/* Play button that appears on hover - only on desktop */}
                     {hoverParagraphId === item.id && !isPlaying && currentParagraphId !== item.id && (
                       <button 
-                        onClick={() => {
-                          handleParagraphTap(item.id);
+                        onClick={(e) => {
+                          handleParagraphTap(item.id, e);
                         }}
                         className="absolute right-0 top-0 bg-primary-100 text-primary-600 dark:bg-primary-900 dark:text-primary-300 rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 hidden md:block"
                         aria-label="Play paragraph"
