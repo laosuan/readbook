@@ -24,6 +24,17 @@ export const books: Book[] = [
     category: ['Classic', 'Realism', 'Fiction'],
   },
   {
+    id: '9',
+    title: '小王子',
+    author: '安托万·德·圣-埃克苏佩里',
+    coverImage: '',
+    description: '《小王子》是法国作家安托万·德·圣-埃克苏佩里于1943年发表的著名儿童文学作品。这个寓言故事讲述了来自外星球的小王子在地球上遇见飞行员的奇妙经历。通过小王子的旅程和他与各种角色的邂逅，作品探讨了友谊、爱、责任和生命的意义等主题。这部作品以其深刻的哲学思考和童真的视角，成为世界文学的经典之作。',
+    publishYear: 1943,
+    language: 'French',
+    totalChapters: 27,
+    category: ['Classic', 'Fantasy', 'Children\'s Literature'],
+  },
+  {
     id: '1',
     title: 'Pride and Prejudice',
     author: 'Jane Austen',

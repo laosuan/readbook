@@ -23,6 +23,13 @@ const BOOK_CONFIGS: BookConfig[] = [
     name: 'GPT-4.5',
     useSplitFiles: true,
     cdnBaseUrl: 'https://cdn.readwordly.com/MadameBovary/20250310/'
+  },
+  {
+    id: '9',
+    cdnUrl: 'https://cdn.readwordly.com/TheLittlePrince/20250310/bilingual_1.json',
+    name: 'The Little Prince',
+    useSplitFiles: true,
+    cdnBaseUrl: 'https://cdn.readwordly.com/TheLittlePrince/20250310/'
   }
 ];
 
@@ -35,8 +42,13 @@ async function fetchBookData(config: BookConfig, part?: number, chapter?: number
     let url = config.cdnUrl;
     
     // 如果使用分割文件，则构建URL
-    if (config.useSplitFiles && config.cdnBaseUrl && part !== undefined && chapter !== undefined) {
-      url = `${config.cdnBaseUrl}bilingual_${part}-${chapter}.json`;
+    if (config.useSplitFiles && config.cdnBaseUrl) {
+      if (config.id === '9' && chapter !== undefined) {
+        // 小王子的文件格式不使用part，直接是bilingual_1.json到bilingual_27.json
+        url = `${config.cdnBaseUrl}bilingual_${chapter}.json`;
+      } else if (part !== undefined && chapter !== undefined) {
+        url = `${config.cdnBaseUrl}bilingual_${part}-${chapter}.json`;
+      }
     }
     
     // 如果该URL已经请求失败过，则直接返回空数据，避免重复请求
@@ -592,7 +604,16 @@ export async function getChapter(bookId: string, chapterNumber: number): Promise
           }
           
           console.log(`Mapped absolute chapter ${chapterNumber} to Part ${part}, Chapter ${chapterInPart}`);
-        } else {
+        } 
+        // For The Little Prince (bookId 9), we have a simpler structure
+        else if (bookId === '9') {
+          // 小王子没有part的概念，直接使用章节号
+          part = 0; // 不使用part
+          chapterInPart = chapterNumber; // 直接使用章节号
+          
+          console.log(`Loading The Little Prince chapter ${chapterNumber}`);
+        }
+        else {
           // For other books, use a more generic approach
           let cumulativeChapters = 0;
           
@@ -620,7 +641,11 @@ export async function getChapter(bookId: string, chapterNumber: number): Promise
             return bookData.paragraphs.map((paragraph: { id: string; source: string; translation: string }) => {
               // Ensure paragraph has source and translation fields
               if (paragraph.source && paragraph.translation) {
-                const id = `${bookId}-${part}-${chapterInPart}-${paragraph.id}`;
+                // 对于小王子，使用不同的ID格式
+                const id = bookId === '9' 
+                  ? `${bookId}-${chapterInPart}-${paragraph.id}` 
+                  : `${bookId}-${part}-${chapterInPart}-${paragraph.id}`;
+                
                 return {
                   id: id,
                   english: paragraph.source,
@@ -634,10 +659,11 @@ export async function getChapter(bookId: string, chapterNumber: number): Promise
         if (content.length > 0) {
           // Create the chapter
           const chapter: Chapter = {
-            id: `${bookId}-${part}-${chapterInPart}`,
+            // 对于小王子，使用不同的ID格式和标题
+            id: bookId === '9' ? `${bookId}-${chapterInPart}` : `${bookId}-${part}-${chapterInPart}`,
             bookId: bookId,
             chapterNumber: chapterNumber,
-            title: `Part ${part}, Chapter ${chapterInPart}`,
+            title: bookId === '9' ? `Chapter ${chapterInPart}` : `Part ${part}, Chapter ${chapterInPart}`,
             content: content
           };
           
@@ -746,7 +772,25 @@ export async function getChapterMetadata(bookId: string): Promise<Chapter[]> {
       }
       
       console.log(`Generated ${chapterMetadata.length} chapter metadata entries for book ${bookId}`);
-    } else {
+    } 
+    // Special case for The Little Prince
+    else if (bookId === '9') {
+      // 小王子有27个章节，编号从1到27
+      const totalChapters = 27;
+      
+      for (let chapter = 1; chapter <= totalChapters; chapter++) {
+        chapterMetadata.push({
+          id: `${bookId}-${chapter}`,
+          bookId: bookId,
+          chapterNumber: chapter,
+          title: `Chapter ${chapter}`,
+          content: [] // Empty content array for metadata
+        });
+      }
+      
+      console.log(`Generated ${chapterMetadata.length} chapter metadata entries for The Little Prince`);
+    }
+    else {
       // For other books, use a simpler approach
       let absoluteChapterNumber = 1;
       
