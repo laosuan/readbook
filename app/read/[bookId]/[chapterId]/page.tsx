@@ -7,6 +7,8 @@ import { getChapter } from '../../../data/chapters';
 import { Book, Chapter } from '../../../types';
 import BilingualReader from '../../../components/BilingualReader';
 import LoadingSpinner from '../../../components/LoadingSpinner';
+import { adaptBilingualData } from '../../../data/adapter';
+import ErrorBoundary from '../../../components/ErrorBoundary';
 
 export default function ReadPage({ params }: { params: Promise<{ bookId: string; chapterId: string }> }) {
   const [book, setBook] = useState<Book | null>(null);
@@ -39,7 +41,35 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string;
         
           if (foundChapter && foundChapter.content && foundChapter.content.length > 0) {
             console.log(`ReadPage: Successfully loaded chapter ${bookId}-${chapterNumber} with ${foundChapter.content.length} paragraphs`);
-            setChapter(foundChapter);
+            
+            // Use adapter to fix field names if necessary
+            if (bookId === '9') {
+              // Direct fetch for all Little Prince chapters 
+              try {
+                const response = await fetch(`https://cdn.readwordly.com/TheLittlePrince/20250403/bilingual_${chapterNumber}.json`);
+                if (response.ok) {
+                  const rawData = await response.json();
+                  // Adapt data from source/translation format to english/chinese format
+                  const adaptedContent = adaptBilingualData(rawData);
+                  
+                  // Create a new chapter object with the adapted content
+                  const adaptedChapter = {
+                    ...foundChapter,
+                    content: adaptedContent
+                  };
+                  
+                  setChapter(adaptedChapter);
+                } else {
+                  console.error(`Failed to fetch bilingual_${chapterNumber}.json: ${response.status}`);
+                  setChapter(foundChapter); // Fallback to original content
+                }
+              } catch (error) {
+                console.error(`Error fetching bilingual_${chapterNumber}.json:`, error);
+                setChapter(foundChapter); // Fallback to original content
+              }
+            } else {
+              setChapter(foundChapter);
+            }
             
             // Set previous and next chapter links
             if (chapterNumber > 1) {
@@ -68,123 +98,76 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string;
       }
     };
     
-    // Simulate loading data with a slight delay
-    const timer = setTimeout(() => {
-      loadData();
-    }, 500);
-    
-    return () => clearTimeout(timer);
-  }, [params]); // Only depend on the params Promise itself
-  
+    loadData();
+  }, [params]);
+
   if (isLoading) {
-    return <LoadingSpinner />;
-  }
-  
-  if (notFound || !book || !chapter) {
     return (
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="text-center">
-          <h1 className="text-3xl font-extrabold text-secondary-900 dark:text-secondary-100">未找到内容</h1>
-          <p className="mt-4 text-xl text-secondary-500 dark:text-secondary-400">
-            抱歉，我们找不到您请求的章节内容。
-          </p>
-          <div className="mt-6">
-            <Link
-              href="/library"
-              className="inline-flex items-center px-4 py-2 border border-transparent text-base font-medium rounded-md shadow-sm dark:bg-secondary-800 text-secondary-700  bg-primary-600 hover:bg-primary-700 dark:bg-primary-500 dark:hover:bg-primary-600"
-            >
-              返回书库
-            </Link>
-          </div>
-        </div>
+      <div className="flex justify-center items-center min-h-screen">
+        <LoadingSpinner />
       </div>
     );
   }
-  
+
+  if (notFound || !book || !chapter) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 py-8">
+        <h1 className="text-2xl font-bold text-red-600 mb-4">章节未找到</h1>
+        <p className="mb-4">抱歉，我们找不到您请求的章节。</p>
+        <Link href="/library" className="text-blue-600 hover:underline">返回书库</Link>
+      </div>
+    );
+  }
+
   return (
-    <div className="bg-card-light dark:bg-card-dark min-h-screen">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-6">
-          <nav className="flex" aria-label="Breadcrumb">
-            <ol className="flex items-center space-x-4">
-              <li>
-                <div>
-                  <Link href="/" className="text-secondary-500 dark:text-secondary-400 hover:text-secondary-700 dark:hover:text-secondary-300">
-                    首页
-                  </Link>
-                </div>
-              </li>
-              <li>
-                <div className="flex items-center">
-                  <svg className="flex-shrink-0 h-5 w-5 text-secondary-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                    <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                  </svg>
-                  <Link href="/library" className="ml-4 text-secondary-500 dark:text-secondary-400 hover:text-secondary-700 dark:hover:text-secondary-300">
-                    书库
-                  </Link>
-                </div>
-              </li>
-              <li>
-                <div className="flex items-center">
-                  <svg className="flex-shrink-0 h-5 w-5 text-secondary-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                    <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                  </svg>
-                  <Link href={`/book/${book.id}`} className="ml-4 text-secondary-500 dark:text-secondary-400 hover:text-secondary-700 dark:hover:text-secondary-300">
-                    {book.title}
-                  </Link>
-                </div>
-              </li>
-              <li>
-                <div className="flex items-center">
-                  <svg className="flex-shrink-0 h-5 w-5 text-secondary-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                    <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                  </svg>
-                  <span className="ml-4 text-secondary-600 dark:text-secondary-300">
-                    {book.id === '7' ? (
-                      // 包法利夫人的章节显示格式
-                      chapter.title
-                    ) : (
-                      // 其他书籍的章节显示格式
-                      `第 ${chapter.chapterNumber} 章`
-                    )}
-                  </span>
-                </div>
-              </li>
-            </ol>
-          </nav>
-        </div>
+    <div className="min-h-screen bg-white dark:bg-gray-900">
+      <main>
+        <ErrorBoundary fallback={
+          <div className="max-w-4xl mx-auto px-4 py-8 mt-4">
+            <p>You can try navigating to another chapter.</p>
+            <div className="mt-4">
+              <Link href={`/book/${book.id}`} className="text-blue-600 hover:underline">
+                View Table of Contents
+              </Link>
+            </div>
+          </div>
+        }>
+          <BilingualReader 
+            content={chapter.content} 
+            chapterTitle={`${book.title} - ${chapter.title}`}
+            bookId={book.id}
+          />
+        </ErrorBoundary>
         
-        <BilingualReader content={chapter.content} chapterTitle={chapter.title} bookId={book.id} />
-        
-        <div className="mt-8 flex justify-between">
+        {/* Chapter navigation */}
+        <div className="max-w-4xl mx-auto px-4 py-8 flex justify-between">
           {prevChapter ? (
             <Link
-              href={`/read/${book.id}/${prevChapter}`}
-              className="px-4 py-2 bg-secondary-100 dark:bg-secondary-800 text-secondary-700 dark:text-secondary-300 rounded-md hover:bg-secondary-200 dark:hover:bg-secondary-700"
-            >
+            href={`/read/${book.id}/${prevChapter}`}
+            className="px-4 py-2 bg-secondary-100 dark:bg-secondary-800 text-secondary-700 dark:text-secondary-300 rounded-md hover:bg-secondary-200 dark:hover:bg-secondary-700"
+          >
               上一章
             </Link>
           ) : (
             <div></div>
           )}
           
+          <Link href={`/book/${book.id}`} className="px-4 py-2 bg-secondary-200 dark:bg-secondary-700 text-secondary-900 dark:text-white rounded-md hover:bg-secondary-300 dark:hover:bg-secondary-600">
+            目录
+          </Link>
+          
           {nextChapter ? (
             <Link
-              href={`/read/${book.id}/${nextChapter}`}
-              className="px-4 py-2 bg-secondary-100 dark:bg-secondary-800 text-secondary-700 dark:text-secondary-300 rounded-md hover:bg-secondary-200 dark:hover:bg-secondary-700"
-            >
+            href={`/read/${book.id}/${nextChapter}`}
+            className="px-4 py-2 bg-secondary-100 dark:bg-secondary-800 text-secondary-700 dark:text-secondary-300 rounded-md hover:bg-secondary-200 dark:hover:bg-secondary-700"
+          >
               下一章
             </Link>
           ) : (
-            <Link
-              href={`/book/${book.id}`}
-              className="px-4 py-2 bg-primary-600 dark:bg-primary-500 dark:bg-secondary-800 text-secondary-700 rounded-md hover:bg-primary-700 dark:hover:bg-primary-600"
-            >
-              返回书籍详情
-            </Link>
+            <div></div>
           )}
         </div>
-      </div>
+      </main>
     </div>
   );
 } 

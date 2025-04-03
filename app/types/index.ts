@@ -22,6 +22,7 @@ export interface BilingualContent {
   id: string;
   english: string;
   chinese: string;
+  image?: string;
 }
 
 export interface VocabularyItem {

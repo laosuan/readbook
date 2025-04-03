@@ -1047,6 +1047,7 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
                     )}
                   </div>
                 )}
+
                 {(showBoth || !showEnglish) && (
                   <p className="text-secondary-700 dark:text-secondary-300 leading-relaxed">
                     {isVocabBook && showVocabulary ? (
@@ -1061,6 +1062,18 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
                       )
                     ) : item.chinese}
                   </p>
+                )}
+
+                {/* 显示图片，如果存在 - 移动到中文文本后面显示 */}
+                {item.image && (
+                  <div className="my-4 flex justify-center">
+                    <img 
+                      src={item.image} 
+                      alt="Book illustration" 
+                      className="max-w-full rounded-md shadow-md"
+                      style={{ maxHeight: '400px' }}
+                    />
+                  </div>
                 )}
               </div>
             );

@@ -29,7 +29,7 @@ const BOOK_CONFIGS: BookConfig[] = [
     cdnUrl: 'https://cdn.readwordly.com/TheLittlePrince/20250310/bilingual_1.json',
     name: 'The Little Prince',
     useSplitFiles: true,
-    cdnBaseUrl: 'https://cdn.readwordly.com/TheLittlePrince/20250310/'
+    cdnBaseUrl: 'https://cdn.readwordly.com/TheLittlePrince/20250403/'
   }
 ];
 
