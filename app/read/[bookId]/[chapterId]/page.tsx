@@ -7,7 +7,6 @@ import { getChapter } from '../../../data/chapters';
 import { Book, Chapter } from '../../../types';
 import BilingualReader from '../../../components/BilingualReader';
 import LoadingSpinner from '../../../components/LoadingSpinner';
-import { adaptBilingualData } from '../../../data/adapter';
 import ErrorBoundary from '../../../components/ErrorBoundary';
 
 export default function ReadPage({ params }: { params: Promise<{ bookId: string; chapterId: string }> }) {
@@ -15,19 +14,22 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string;
   const [chapter, setChapter] = useState<Chapter | null>(null);
   const [prevChapter, setPrevChapter] = useState<string | null>(null);
   const [nextChapter, setNextChapter] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [notFound, setNotFound] = useState(false);
-
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [notFound, setNotFound] = useState<boolean>(false);
+  
   useEffect(() => {
     // Reset state when params change
+    setBook(null);
+    setChapter(null);
+    setPrevChapter(null);
+    setNextChapter(null);
     setIsLoading(true);
     setNotFound(false);
     
-    // Handle Promise-based params
     const loadData = async () => {
       try {
-        const paramsData = await params;
-        const { bookId, chapterId } = paramsData;
+        // Extract params
+        const { bookId, chapterId } = await params;
         
         // Find the book by ID
         const foundBook = books.find((b) => b.id === bookId);
@@ -42,34 +44,8 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string;
           if (foundChapter && foundChapter.content && foundChapter.content.length > 0) {
             console.log(`ReadPage: Successfully loaded chapter ${bookId}-${chapterNumber} with ${foundChapter.content.length} paragraphs`);
             
-            // Use adapter to fix field names if necessary
-            if (bookId === '9') {
-              // Direct fetch for all Little Prince chapters 
-              try {
-                const response = await fetch(`https://cdn.readwordly.com/TheLittlePrince/20250403/bilingual_${chapterNumber}.json`);
-                if (response.ok) {
-                  const rawData = await response.json();
-                  // Adapt data from source/translation format to english/chinese format
-                  const adaptedContent = adaptBilingualData(rawData);
-                  
-                  // Create a new chapter object with the adapted content
-                  const adaptedChapter = {
-                    ...foundChapter,
-                    content: adaptedContent
-                  };
-                  
-                  setChapter(adaptedChapter);
-                } else {
-                  console.error(`Failed to fetch bilingual_${chapterNumber}.json: ${response.status}`);
-                  setChapter(foundChapter); // Fallback to original content
-                }
-              } catch (error) {
-                console.error(`Error fetching bilingual_${chapterNumber}.json:`, error);
-                setChapter(foundChapter); // Fallback to original content
-              }
-            } else {
-              setChapter(foundChapter);
-            }
+            // Set chapter to state
+            setChapter(foundChapter);
             
             // Set previous and next chapter links
             if (chapterNumber > 1) {
