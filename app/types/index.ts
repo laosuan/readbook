@@ -25,15 +25,6 @@ export interface BilingualContent {
   image?: string;
 }
 
-export interface VocabularyItem {
-  id: string;
-  paragraphId: string;
-  english: string;
-  chinese: string;
-  raw_english: string;
-  raw_chinese: string;
-}
-
 export interface User {
   id: string;
   name: string;
