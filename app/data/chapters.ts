@@ -134,8 +134,6 @@ async function processBookData(config: BookConfig, part?: number, chapter?: numb
         ? `${config.id}-${part}-${chapter}-${paragraph.id}`
         : `${config.id}-1-${paragraph.id}`;
 
-      // console.log(`Processing paragraph ${id}, config ID: ${config.id}, part: ${part}, chapter: ${chapter}`);
-        
       content.push({
         id: id,
         english: paragraph.source, // 英文原文
