@@ -543,7 +543,8 @@ const cachedChapterMetadata: Record<string, Chapter[]> = {};
 const loadingChapters: Record<string, Promise<Chapter | null>> = {};
 
 // Define interface for raw bilingual data format
-interface RawBilingualData {
+// This interface is used in the fetchBookData function when parsing the data
+export interface RawBilingualData {
   title: string;
   author: string;
   language: {

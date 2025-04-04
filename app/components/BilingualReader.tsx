@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { BilingualContent } from '../types';
 import { KeyWord, getVocabularyForParagraph, highlightText } from '../data/vocabulary';
 import Link from 'next/link';
+import Image from 'next/image';
 
 interface BilingualReaderProps {
   content: BilingualContent[];
@@ -1151,11 +1152,13 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
                 {/* 显示图片，如果存在 - 移动到中文文本后面显示 */}
                 {item.image && (
                   <div className="my-4 flex justify-center">
-                    <img 
+                    <Image 
                       src={item.image} 
                       alt="Book illustration" 
                       className="max-w-full rounded-md shadow-md"
-                      style={{ maxHeight: '400px' }}
+                      width={500}
+                      height={400}
+                      style={{ maxHeight: '400px', objectFit: 'contain' }}
                     />
                   </div>
                 )}
