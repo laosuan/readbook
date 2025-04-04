@@ -133,6 +133,8 @@ async function processBookData(config: BookConfig, part?: number, chapter?: numb
       const id = config.useSplitFiles && part && chapter
         ? `${config.id}-${part}-${chapter}-${paragraph.id}`
         : `${config.id}-1-${paragraph.id}`;
+
+      // console.log(`Processing paragraph ${id}, config ID: ${config.id}, part: ${part}, chapter: ${chapter}`);
         
       content.push({
         id: id,
@@ -557,52 +559,12 @@ interface RawBilingualData {
   }[];
 }
 
-/**
- * Converts data from the raw JSON format (source/translation) to the format 
- * expected by the BilingualReader component (english/chinese)
- */
-function adaptBilingualData(data: RawBilingualData): BilingualContent[] {
-  if (!data || !data.paragraphs || !Array.isArray(data.paragraphs)) {
-    console.error('Invalid data format provided to adapter');
-    return [];
-  }
-
-  return data.paragraphs.map((paragraph) => {
-    if (!paragraph) {
-      console.warn('Empty paragraph found in data');
-      return {
-        id: Date.now().toString(), // Generate a unique ID
-        english: '',
-        chinese: '',
-      };
-    }
-
-    // Ensure the image URL is correctly passed to the output
-    const adaptedParagraph: BilingualContent = {
-      id: paragraph.id?.toString() || Date.now().toString(),
-      english: paragraph.source || '',
-      chinese: paragraph.translation || '',
-    };
-
-    // Only add the image property if it exists
-    if (paragraph.image) {
-      adaptedParagraph.image = paragraph.image;
-      
-      // Debug log for image URLs
-      console.log(`Adapting paragraph ${adaptedParagraph.id} with image: ${paragraph.image}`);
-    }
-
-    return adaptedParagraph;
-  });
-}
-
 // Function to get a single chapter by bookId and chapterNumber
 export async function getChapter(bookId: string, chapterNumber: number): Promise<Chapter | null> {
   const cacheKey = `${bookId}-${chapterNumber}`;
   
   // If this chapter is already being loaded, return the existing promise
   if (cacheKey in loadingChapters) {
-    console.log(`Loading of chapter ${bookId}-${chapterNumber} already in progress, reusing request`);
     return loadingChapters[cacheKey];
   }
   
@@ -618,7 +580,6 @@ export async function getChapter(bookId: string, chapterNumber: number): Promise
                     chapter.content.length > 0
         );
         if (cachedChapter) {
-          console.log(`Using cached chapter ${bookId}-${chapterNumber} with ${cachedChapter.content.length} paragraphs`);
           return cachedChapter;
         } else {
           console.log(`Found cached chapter ${bookId}-${chapterNumber} but it has no content, will reload`);
@@ -630,107 +591,6 @@ export async function getChapter(bookId: string, chapterNumber: number): Promise
       if (!bookConfig) {
         console.error(`Book config not found for ID: ${bookId}`);
         return null;
-      }
-      
-      // Special handling for The Little Prince (bookId 9)
-      if (bookId === '9') {
-        try {
-          // Get the basic chapter structure first
-          const bookConfig = BOOK_CONFIGS.find(config => config.id === bookId);
-          if (!bookConfig) {
-            console.error(`Book config not found for ID: ${bookId}`);
-            return null;
-          }
-          
-          // For The Little Prince, we may have basic content already, but need to fetch directly for better content
-          let baseChapter: Chapter | null = null;
-          
-          // Try to get base chapter metadata
-          if (bookConfig.useSplitFiles) {
-            // Calculate part and chapter
-            const part = 0; // The Little Prince doesn't use parts
-            const chapterInPart = chapterNumber;
-            
-            // Get content for this specific chapter using the regular method
-            const content = await processBookData(bookConfig, part, chapterInPart);
-            
-            if (content.length > 0) {
-              // Create the base chapter
-              baseChapter = {
-                id: `${bookId}-${chapterInPart}`,
-                bookId: bookId,
-                chapterNumber: chapterNumber,
-                title: `Chapter ${chapterInPart}`,
-                content: content
-              };
-            }
-          } else {
-            // Fallback to getting all chapters and finding the one we want
-            const allChapters = await getChapters();
-            baseChapter = allChapters.find(chapter => chapter.bookId === bookId && chapter.chapterNumber === chapterNumber) || null;
-          }
-          
-          // Attempt to fetch directly from the CDN with the updated URL format
-          console.log(`Direct fetch for Little Prince chapter ${chapterNumber}`);
-          const response = await fetch(`https://cdn.readwordly.com/TheLittlePrince/20250403/bilingual_${chapterNumber}.json`);
-          
-          if (response.ok) {
-            const rawData = await response.json();
-            // Adapt data from source/translation format to english/chinese format
-            const adaptedContent = adaptBilingualData(rawData);
-            
-            // Create or update chapter with adapted content
-            if (baseChapter) {
-              // Create a new chapter object with the adapted content
-              const adaptedChapter = {
-                ...baseChapter,
-                content: adaptedContent
-              };
-              
-              // Update cache if we have one
-              if (cachedChapters) {
-                const existingIndex = cachedChapters.findIndex(
-                  c => c.bookId === bookId && c.chapterNumber === chapterNumber
-                );
-                
-                if (existingIndex >= 0) {
-                  // Replace existing chapter
-                  cachedChapters[existingIndex] = adaptedChapter;
-                } else {
-                  // Add new chapter to cache
-                  cachedChapters.push(adaptedChapter);
-                }
-              }
-              
-              console.log(`Successfully loaded Little Prince chapter ${chapterNumber} with ${adaptedContent.length} paragraphs`);
-              return adaptedChapter;
-            } else {
-              // Create a new chapter if we don't have a base
-              const newChapter: Chapter = {
-                id: `${bookId}-${chapterNumber}`,
-                bookId: bookId,
-                chapterNumber: chapterNumber,
-                title: `Chapter ${chapterNumber}`,
-                content: adaptedContent
-              };
-              
-              // Add to cache if we have one
-              if (cachedChapters) {
-                cachedChapters.push(newChapter);
-              }
-              
-              console.log(`Created new Little Prince chapter ${chapterNumber} with ${adaptedContent.length} paragraphs`);
-              return newChapter;
-            }
-          } else {
-            console.error(`Failed to fetch bilingual_${chapterNumber}.json: ${response.status}`);
-            // Fall back to the regular method if direct fetch fails
-            return baseChapter;
-          }
-        } catch (error) {
-          console.error(`Error fetching Little Prince chapter ${chapterNumber}:`, error);
-          // Continue with regular method if direct fetch fails
-        }
       }
       
       // For split files, we can load just the specific chapter
@@ -784,8 +644,6 @@ export async function getChapter(bookId: string, chapterNumber: number): Promise
           }
         }
         
-        console.log(`Loading chapter ${chapterNumber} (Part ${part}, Chapter ${chapterInPart}) for book ${bookId}`);
-        
         // Get content for this specific chapter only
         const content = await fetchBookData(bookConfig, part, chapterInPart)
           .then(bookData => {
@@ -795,13 +653,23 @@ export async function getChapter(bookId: string, chapterNumber: number): Promise
               return [];
             }
             
-            return bookData.paragraphs.map((paragraph: { id: string; source: string; translation: string }) => {
+            return bookData.paragraphs.map((paragraph: { id: string; source: string; translation: string; image?: string }) => {
               // Ensure paragraph has source and translation fields
               if (paragraph.source && paragraph.translation) {
                 // 对于小王子，使用不同的ID格式
                 const id = bookId === '9' 
                   ? `${bookId}-${chapterInPart}-${paragraph.id}` 
                   : `${bookId}-${part}-${chapterInPart}-${paragraph.id}`;
+                
+                // For The Little Prince (bookId 9), include the image property if it exists
+                if (bookId === '9' && paragraph.image) {
+                  return {
+                    id: id,
+                    english: paragraph.source,
+                    chinese: paragraph.translation,
+                    image: paragraph.image
+                  };
+                }
                 
                 return {
                   id: id,

@@ -1,5 +1,11 @@
-// Define CDN base URL for vocabulary files
-const CDN_BASE_URL = 'https://cdn.readwordly.com/MadameBovary/20250310/';
+// Define CDN base URLs for vocabulary files by book ID
+const CDN_BASE_URLS: Record<string, string> = {
+  // Madame Bovary (IDs 7 and 8 from books.ts)
+  '7': 'https://cdn.readwordly.com/MadameBovary/20250310/',
+  '8': 'https://cdn.readwordly.com/MadameBovary/20250310/',
+  // The Little Prince (ID 9 from books.ts)
+  '9': 'https://cdn.readwordly.com/TheLittlePrince/20250403/',
+};
 import React, { ReactNode } from 'react';
 
 export interface KeyWord {
@@ -26,8 +32,8 @@ export interface VocabularyData {
 
 // Default empty vocabulary data structure
 const emptyVocabularyData: VocabularyData = {
-  title: 'Madame Bovary',
-  author: 'Gustave Flaubert',
+  title: '',
+  author: '',
   language: {
     source: 'English',
     target: 'Chinese'
@@ -37,7 +43,25 @@ const emptyVocabularyData: VocabularyData = {
 
 // Function to get vocabulary data for a specific book
 // This function now only returns the empty structure since we're only using split files
-export async function getVocabularyData(): Promise<VocabularyData> {
+export async function getVocabularyData(bookId?: string): Promise<VocabularyData> {
+  // If a book ID is provided, we could customize the empty structure 
+  // with book-specific information in the future
+  if (bookId === '9') {
+    // The Little Prince
+    return {
+      ...emptyVocabularyData,
+      title: 'The Little Prince',
+      author: 'Antoine de Saint-Exupéry'
+    };
+  } else if (bookId === '7' || bookId === '8') {
+    // Madame Bovary
+    return {
+      ...emptyVocabularyData,
+      title: 'Madame Bovary',
+      author: 'Gustave Flaubert'
+    };
+  }
+  
   return emptyVocabularyData;
 }
 
@@ -50,29 +74,72 @@ const failedVocabularyRequests: Set<string> = new Set();
 // Function to get vocabulary for a specific paragraph by ID
 export async function getVocabularyForParagraph(paragraphId: string): Promise<KeyWord[]> {
   try {
-    // Extract parts from the paragraph ID (format: bookId-part-chapter-paragraphId)
-    const idParts = paragraphId.split('-');
+    console.log(`[Vocab API] Processing paragraph ID: ${paragraphId}`);
     
-    // Check if we have enough parts to determine part and chapter
-    if (idParts.length >= 4) {
-      const part = idParts[1];
-      const chapter = idParts[2];
-      const numericId = parseInt(idParts[3], 10);
+    // Extract parts from the paragraph ID
+    const idParts = paragraphId.split('-');
+    console.log(`[Vocab API] ID parts:`, idParts);
+    
+    // Check if we have enough parts to determine chapter (and part if needed)
+    if (idParts.length >= 3) {
+      const bookId = idParts[0];
       
-      // Create a cache key for this part-chapter combination
-      const cacheKey = `${part}-${chapter}`;
+      // Different handling based on book ID
+      let part: string;
+      let chapter: string;
+      let numericId: number;
+      
+      // For Madame Bovary (books 7 & 8), use 4-part format: bookId-part-chapter-paragraphId
+      if ((bookId === '7' || bookId === '8') && idParts.length >= 4) {
+        part = idParts[1];
+        chapter = idParts[2];
+        numericId = parseInt(idParts[3], 10);
+        console.log(`[Vocab API] Madame Bovary format: part=${part}, chapter=${chapter}, paragraphId=${numericId}`);
+      } 
+      // For The Little Prince (book 9), use 3-part format: bookId-chapter-paragraphId
+      else if (bookId === '9') {
+        part = '0'; // Little Prince doesn't use parts
+        chapter = idParts[1];
+        numericId = parseInt(idParts[2], 10);
+        console.log(`[Vocab API] Little Prince format: chapter=${chapter}, paragraphId=${numericId}`);
+      }
+      // For other books or invalid formats, return empty
+      else {
+        console.warn(`[Vocab API] Unsupported book ID or format: ${paragraphId}`);
+        return [];
+      }
+      
+      // Check if this book has vocabulary support
+      if (!CDN_BASE_URLS[bookId]) {
+        console.info(`[Vocab API] No vocabulary support for book ID ${bookId}`);
+        return [];
+      }
+      
+      // Create a cache key for this book-part-chapter combination
+      const cacheKey = `${bookId}-${part}-${chapter}`;
+      console.log(`[Vocab API] Using cache key: ${cacheKey}`);
       
       // If we've already tried and failed to fetch this vocabulary, don't try again
       if (failedVocabularyRequests.has(cacheKey)) {
+        console.log(`[Vocab API] Skipping previously failed request for ${cacheKey}`);
         return [];
       }
       
       // Check if we have this part-chapter data in cache
       if (!vocabularyCache[cacheKey]) {
+        console.log(`[Vocab API] Cache miss for ${cacheKey}, fetching from server`);
         try {
-          // Try to fetch the vocabulary data for this part-chapter from CDN
-          // The file naming pattern is vocabulary_part-chapter.json
-          const url = `${CDN_BASE_URL}vocabulary_${part}-${chapter}.json`;
+          // Determine the correct URL pattern based on the book ID
+          let url = '';
+          if (bookId === '9') {
+            // The Little Prince uses a simpler format: vocabulary_chapter.json
+            url = `${CDN_BASE_URLS[bookId]}vocabulary_${chapter}.json`;
+          } else {
+            // Madame Bovary uses the original format: vocabulary_part-chapter.json
+            url = `${CDN_BASE_URLS[bookId]}vocabulary_${part}-${chapter}.json`;
+          }
+          
+          console.log(`[Vocab API] Fetching vocabulary from URL: ${url}`);
           
           // Implement retry logic with a maximum of 1 retry
           let retries = 0;
@@ -80,15 +147,17 @@ export async function getVocabularyForParagraph(paragraphId: string): Promise<Ke
           
           while (retries <= maxRetries) {
             try {
+              console.log(`[Vocab API] Fetch attempt ${retries + 1}/${maxRetries + 1}`);
               const response = await fetch(url);
               
               if (response.ok) {
                 const data = await response.json();
                 if (data && data.vocabulary) {
+                  console.log(`[Vocab API] Successfully fetched vocabulary with ${data.vocabulary.length} items`);
                   vocabularyCache[cacheKey] = data.vocabulary;
                   break; // Success, exit the retry loop
                 } else {
-                  console.warn(`Invalid vocabulary data format for ${part}-${chapter}`);
+                  console.warn(`[Vocab API] Invalid vocabulary data format for ${cacheKey}`);
                   vocabularyCache[cacheKey] = [];
                   failedVocabularyRequests.add(cacheKey);
                   break;
@@ -96,7 +165,7 @@ export async function getVocabularyForParagraph(paragraphId: string): Promise<Ke
               } else {
                 // If not found (404), mark as failed and don't retry
                 if (response.status === 404) {
-                  console.warn(`Vocabulary data not found for ${part}-${chapter}`);
+                  console.warn(`[Vocab API] Vocabulary data not found (404) for ${cacheKey}`);
                   vocabularyCache[cacheKey] = [];
                   failedVocabularyRequests.add(cacheKey);
                   break;
@@ -104,13 +173,13 @@ export async function getVocabularyForParagraph(paragraphId: string): Promise<Ke
                 
                 // For other errors, retry if we haven't reached max retries
                 if (retries === maxRetries) {
-                  console.warn(`Failed to fetch vocabulary data for ${part}-${chapter} after ${maxRetries} retries`);
+                  console.warn(`[Vocab API] Failed to fetch vocabulary data for ${cacheKey} after ${maxRetries} retries. Status: ${response.status}`);
                   vocabularyCache[cacheKey] = [];
                   failedVocabularyRequests.add(cacheKey);
                   break;
                 }
                 
-                console.warn(`Retry ${retries + 1}/${maxRetries} for vocabulary ${part}-${chapter}`);
+                console.warn(`[Vocab API] Retry ${retries + 1}/${maxRetries} for vocabulary ${cacheKey}. Status: ${response.status}`);
                 retries++;
                 // Add a short delay before retrying
                 await new Promise(resolve => setTimeout(resolve, 500));
@@ -118,36 +187,45 @@ export async function getVocabularyForParagraph(paragraphId: string): Promise<Ke
             } catch (error) {
               // For network errors, retry if we haven't reached max retries
               if (retries === maxRetries) {
-                console.error(`Error fetching vocabulary data for ${part}-${chapter} after ${maxRetries} retries:`, error);
+                console.error(`[Vocab API] Error fetching vocabulary data for ${cacheKey} after ${maxRetries} retries:`, error);
                 vocabularyCache[cacheKey] = [];
                 failedVocabularyRequests.add(cacheKey);
                 break;
               }
               
-              console.warn(`Retry ${retries + 1}/${maxRetries} after error for vocabulary ${part}-${chapter}`);
+              console.warn(`[Vocab API] Retry ${retries + 1}/${maxRetries} after error for vocabulary ${cacheKey}:`, error);
               retries++;
               // Add a short delay before retrying
               await new Promise(resolve => setTimeout(resolve, 500));
             }
           }
         } catch (error) {
-          console.error(`Unexpected error fetching vocabulary data for ${part}-${chapter}:`, error);
+          console.error(`[Vocab API] Unexpected error fetching vocabulary data for ${cacheKey}:`, error);
           vocabularyCache[cacheKey] = [];
           failedVocabularyRequests.add(cacheKey);
         }
+      } else {
+        console.log(`[Vocab API] Cache hit for ${cacheKey}, using cached data`);
       }
       
       // Find the vocabulary item with the matching ID in the cached data
       const vocabItem = vocabularyCache[cacheKey]?.find(item => item.id === numericId);
       const result = vocabItem?.key_words || [];
+      
+      if (result.length > 0) {
+        console.log(`[Vocab API] Found ${result.length} vocabulary words for paragraph ${paragraphId}`);
+      } else {
+        console.log(`[Vocab API] No vocabulary found for paragraph ${paragraphId}`);
+      }
+      
       return result;
     } else {
-      // For old format IDs, we won't attempt to load from the full vocabulary file
-      console.warn(`Invalid paragraph ID format: ${paragraphId}`);
+      // For invalid format IDs, we won't attempt to load vocabulary
+      console.warn(`[Vocab API] Invalid paragraph ID format: ${paragraphId} (needs at least 3 parts)`);
       return [];
     }
   } catch (error) {
-    console.error('Error getting vocabulary for paragraph:', error);
+    console.error('[Vocab API] Error getting vocabulary for paragraph:', error);
     return [];
   }
 }
@@ -287,4 +365,7 @@ export function highlightText(text: string, keywords: KeyWord[], isEnglish: bool
 function escapeRegExp(string: string): string {
   return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
+
+// Export CDN base URLs for direct access if needed
+export const VOCABULARY_CDN_URLS = CDN_BASE_URLS;
 

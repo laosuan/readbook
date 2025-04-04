@@ -562,7 +562,7 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
 
   // Set up intersection observer to track visible paragraphs
   useEffect(() => {
-    if (typeof window === 'undefined' || !showVocabulary || bookId !== '8') return;
+    if (typeof window === 'undefined' || !showVocabulary || !(bookId === '8' || bookId === '9')) return;
     
     const observerOptions = {
       root: null, // viewport
@@ -604,24 +604,43 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
 
   // Extract chapter information from content to limit vocabulary requests to current chapter only
   const currentChapterInfo = useMemo(() => {
-    if (!content || content.length === 0 || !(bookId === '8')) return null;
+    console.log(`[ChapterInfo] Extracting chapter info for book ${bookId};content: ${content}`);
+    // log content detail
+    console.log(`[ChapterInfo] Content details:`, content);
+    if (!content || content.length === 0 || !(bookId === '8' || bookId === '9')) return null;
     
     // Get the first paragraph ID to extract part and chapter
     const firstParagraphId = content[0]?.id;
+    console.log(`[ChapterInfo] Book ${bookId}: First paragraph ID: ${firstParagraphId}`);
+    
     if (!firstParagraphId) return null;
     
     const idParts = firstParagraphId.split('-');
-    if (idParts.length < 4) return null;
+    console.log(`[ChapterInfo] ID parts:`, idParts);
     
-    return {
+    // For The Little Prince, the ID format is different: bookId-chapterNumber-paragraphNumber
+    if (bookId === '9') {
+      // Check if we have at least 3 parts (bookId-chapterNumber-paragraphNumber)
+      
+      // For The Little Prince, the chapter is the second part of the ID
+      const chapterInfo = {
+        part: '0', // The Little Prince doesn't use parts, so we use '0' as a placeholder
+        chapter: idParts[1]
+      };
+      return chapterInfo;
+    }
+    
+    // For Madame Bovary, we need both part and chapter
+    const chapterInfo = {
       part: idParts[1],
       chapter: idParts[2]
     };
+    return chapterInfo;
   }, [content, bookId]);
 
   // Update vocabulary items when visible paragraphs change
   useEffect(() => {
-    if (!showVocabulary || !(bookId === '8') || !currentChapterInfo) {
+    if (!showVocabulary || !(bookId === '8' || bookId === '9') || !currentChapterInfo) {
       return;
     }
     
@@ -629,24 +648,55 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
     let debounceTimer: NodeJS.Timeout | null = null;
     
     const fetchVocabulary = async () => {
+
       // Keep existing vocabulary items
       const newVocabularyItems = {...vocabularyItems};
-      
+
       // Get visible paragraphs and add adjacent paragraphs for preloading
       const visibleParagraphIds = Array.from(visibleParagraphs);
       const paragraphIdsToCheck = new Set(visibleParagraphIds);
       
       // Add a few paragraphs ahead for preloading
       visibleParagraphIds.forEach(paragraphId => {
-        const [bookId, part, chapter, numStr] = paragraphId.split('-');
-        const paragraphNum = parseInt(numStr, 10);
+        const idParts = paragraphId.split('-');
         
-        // Add 5 paragraphs ahead for preloading
-        for (let i = 1; i <= 5; i++) {
-          const adjacentNum = paragraphNum + i;
-          if (adjacentNum > 0) {
-            const adjacentId = `${bookId}-${part}-${chapter}-${adjacentNum}`;
-            paragraphIdsToCheck.add(adjacentId);
+        // Handle different ID formats based on book ID
+        if (bookId === '9') {
+          // For The Little Prince: bookId-chapterNumber-paragraphNumber
+          if (idParts.length >= 3) {
+            const theBookId = idParts[0];
+            const chapter = idParts[1];
+            const numStr = idParts[2];
+            
+            const paragraphNum = parseInt(numStr, 10);
+            
+            // Add 5 paragraphs ahead for preloading
+            for (let i = 1; i <= 5; i++) {
+              const adjacentNum = paragraphNum + i;
+              if (adjacentNum > 0) {
+                const adjacentId = `${theBookId}-${chapter}-${adjacentNum}`;
+                paragraphIdsToCheck.add(adjacentId);
+              }
+            }
+          }
+        } else {
+          // For Madame Bovary: bookId-part-chapter-paragraphNumber
+          if (idParts.length >= 4) {
+            const theBookId = idParts[0];
+            const part = idParts[1];
+            const chapter = idParts[2];
+            const numStr = idParts[3];
+            
+            const paragraphNum = parseInt(numStr, 10);
+            
+            // Add 5 paragraphs ahead for preloading
+            for (let i = 1; i <= 5; i++) {
+              const adjacentNum = paragraphNum + i;
+              if (adjacentNum > 0) {
+                const adjacentId = `${theBookId}-${part}-${chapter}-${adjacentNum}`;
+                paragraphIdsToCheck.add(adjacentId);
+              }
+            }
           }
         }
       });
@@ -655,17 +705,39 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
       // Get only paragraphs that aren't already loaded and belong to the current chapter
       const paragraphsToFetch = Array.from(paragraphIdsToCheck).filter(paragraphId => {
         // Skip if already loaded
-        if (newVocabularyItems[paragraphId]) return false;
+        if (newVocabularyItems[paragraphId]) {
+          return false;
+        }
         
         // Verify paragraph belongs to current chapter
         const idParts = paragraphId.split('-');
-        if (idParts.length < 4) return false;
         
-        const paragraphPart = idParts[1];
-        const paragraphChapter = idParts[2];
-        
-        return paragraphPart === currentChapterInfo.part && 
-               paragraphChapter === currentChapterInfo.chapter;
+        // Handle different ID formats
+        if (bookId === '9') {
+          // For The Little Prince: bookId-chapterNumber-paragraphNumber
+          if (idParts.length < 3) {
+            return false;
+          }
+          
+          const paragraphChapter = idParts[1];
+          
+          // For The Little Prince, we only care if the chapter matches
+          const matches = paragraphChapter === currentChapterInfo.chapter;
+          return matches;
+        } else {
+          // For Madame Bovary: bookId-part-chapter-paragraphNumber
+          if (idParts.length < 4) {
+            return false;
+          }
+          
+          const paragraphPart = idParts[1];
+          const paragraphChapter = idParts[2];
+          
+          // For Madame Bovary, we need both part and chapter to match
+          const matches = paragraphPart === currentChapterInfo.part && 
+                 paragraphChapter === currentChapterInfo.chapter;
+          return matches;
+        }
       });
       
       // If no new paragraphs to fetch, exit early
@@ -901,7 +973,7 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
           >
             {showBoth ? '仅显示英文' : showEnglish ? '仅显示中文' : '双语对照'}
           </button>
-          {(bookId === '8') && (
+          {(bookId === '8' || bookId === '9') && (
             <button
               onClick={toggleVocabulary}
               className={`px-3 py-1 rounded-md text-secondary-700 text-sm ${showVocabulary ? 'bg-yellow-200 hover:bg-yellow-300 dark:bg-yellow-700 dark:hover:bg-yellow-600' : 'bg-secondary-200 hover:bg-secondary-300 dark:bg-secondary-700 dark:hover:bg-secondary-600'}`}
@@ -947,6 +1019,17 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
             {showBoth ? '仅英文' : showEnglish ? '仅中文' : '双语'}
           </button>
           
+          {/* Vocab toggle for Little Prince and Madame Bovary */}
+          {(bookId === '8' || bookId === '9') && (
+            <button
+              onClick={toggleVocabulary}
+              className={`px-2 py-1 rounded-md text-secondary-700 text-xs ${showVocabulary ? 'bg-yellow-200 hover:bg-yellow-300 dark:bg-yellow-700 dark:hover:bg-yellow-600' : 'bg-secondary-200 hover:bg-secondary-300 dark:bg-secondary-700 dark:hover:bg-secondary-600'}`}
+            >
+              {showVocabulary ? '隐藏词汇' : '显示词汇'}
+            </button>
+          )}
+          
+          {/* TTS controls */}
           {currentParagraphId && (
             <div className="flex items-center space-x-1">
               {isLoading && (
@@ -974,9 +1057,10 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
       <div className="flex md:gap-10">  
         <div className="prose prose-lg flex-grow" style={{ fontSize: `${fontSize}px` }}>
           {content.map((item) => {
-            // Only load vocabulary for bookId 8
-            const isVocabBook = bookId === '8';
-            // Use vocabulary from state instead of fetching it directly
+            // Get vocabulary for this paragraph
+            // This is important because the vocabulary is used in both English and Chinese display
+            // Change isVocabBook to include both Madame Bovary and The Little Prince
+            const isVocabBook = bookId === '8' || bookId === '9';
             const vocabulary = isVocabBook && showVocabulary ? vocabularyItems[item.id] || [] : [];
             const hasVocabulary = vocabulary.length > 0;
             
@@ -1168,7 +1252,7 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
       )}
       
       {/* Mobile vocabulary floating button - only on mobile and when vocabulary is available */}
-      {(bookId === '8') && showVocabulary && Object.keys(vocabularyItems).length > 0 && (
+      {(bookId === '8' || bookId === '9') && showVocabulary && Object.keys(vocabularyItems).length > 0 && (
         <button 
           onClick={toggleMobileVocabulary}
           className="md:hidden mobile-vocabulary-toggle bg-yellow-400 dark:bg-yellow-600 text-secondary-900 dark:text-secondary-100"
@@ -1187,7 +1271,7 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
       )}
       
       {/* Mobile vocabulary bottom panel */}
-      {showMobileVocabulary && showVocabulary && Object.keys(vocabularyItems).length > 0 && (
+      {showMobileVocabulary && showVocabulary && (bookId === '8' || bookId === '9') && Object.keys(vocabularyItems).length > 0 && (
         <div className="md:hidden mobile-vocabulary-panel bg-secondary-50 dark:bg-secondary-900 p-4" style={{ backgroundColor: 'var(--bg-secondary-50, #f9fafb)', opacity: 1 }}>
           <div className="space-y-3">
             {visibleParagraphs.size > 0 ? (
