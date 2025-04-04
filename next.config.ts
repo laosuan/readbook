@@ -23,6 +23,17 @@ const nextConfig: NextConfig = {
       };
     }
     return config;
+  },
+  images: {
+    domains: ['cdn.readwordly.com'],
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'cdn.readwordly.com',
+        port: '',
+        pathname: '/**',
+      },
+    ],
   }
 };
 
