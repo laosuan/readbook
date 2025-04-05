@@ -5,14 +5,16 @@ import { BilingualContent } from '../types';
 import { KeyWord, getVocabularyForParagraph, highlightText } from '../data/vocabulary';
 import Link from 'next/link';
 import Image from 'next/image';
+import { saveReadingProgress, getReadingProgress } from '../lib/localStorage';
 
 interface BilingualReaderProps {
   content: BilingualContent[];
   chapterTitle: string;
   bookId: string;
+  chapterId: string;
 }
 
-export default function BilingualReader({ content, chapterTitle, bookId }: BilingualReaderProps) {
+export default function BilingualReader({ content, chapterTitle, bookId, chapterId }: BilingualReaderProps) {
   const [fontSize, setFontSize] = useState<number>(16);
   const [showBoth, setShowBoth] = useState<boolean>(true);
   const [showEnglish, setShowEnglish] = useState<boolean>(true);
@@ -35,6 +37,10 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
   // Use a ref to track the last scroll position
   const lastScrollPositionRef = useRef<number>(0);
   const scrollTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const saveProgressTimerRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // 添加追踪用户滚动状态的ref - 移到组件顶层
+  const hasScrolledRef = useRef<boolean>(false);
   
   // Forward declarations to solve circular references
   const playTTSRef = useRef<(paragraphId: string) => Promise<void>>(undefined!);
@@ -98,11 +104,27 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
     setShowVocabulary(!showVocabulary);
   };
 
-  // Track scroll to show/hide floating controls
+  // Track scroll to show/hide floating controls and save reading progress
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
+    // 组件挂载时记录日志
+    console.log(`BilingualReader 组件已挂载 - 书籍: ${bookId}, 章节: ${chapterId}`);
+    
+    // 重置滚动状态
+    hasScrolledRef.current = false;
+    
+    // 尝试获取现有的阅读进度，避免重置
+    const existingProgress = getReadingProgress(bookId);
+    if (existingProgress && existingProgress.lastPosition > 10) {
+      console.log(`BilingualReader 挂载时找到现有阅读进度 - 书籍: ${bookId}, 位置: ${existingProgress.lastPosition}px`);
+      // 我们不在这里设置滚动位置，那是ReadPage组件的责任
+    }
+    
     const handleScroll = () => {
+      // 标记已经滚动过
+      hasScrolledRef.current = true;
+      
       const currentScrollPos = window.scrollY;
       
       // Show/hide based on scroll direction
@@ -125,15 +147,133 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
       scrollTimerRef.current = setTimeout(() => {
         setShowFloatingControls(true);
       }, 1000);
+      
+      // Clear existing progress save timer
+      if (saveProgressTimerRef.current) {
+        clearTimeout(saveProgressTimerRef.current);
+      }
+      
+      // Save reading progress after scrolling stops (debounce)
+      saveProgressTimerRef.current = setTimeout(() => {
+        // Only save position if it's meaningful (not at the very top)
+        if (currentScrollPos > 10) {
+          console.log('滚动时保存阅读进度:', {
+            书籍: bookId,
+            章节: chapterId,
+            位置: currentScrollPos,
+            时间: new Date().toLocaleString()
+          });
+          
+          saveReadingProgress({
+            bookId,
+            chapterId,
+            lastPosition: currentScrollPos,
+            lastRead: new Date().toISOString()
+          });
+        }
+      }, 500);
     };
 
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => {
+      console.log(`BilingualReader 组件即将卸载 - 书籍: ${bookId}, 章节: ${chapterId}`);
+      
       window.removeEventListener('scroll', handleScroll);
       if (scrollTimerRef.current) {
         clearTimeout(scrollTimerRef.current);
       }
+      if (saveProgressTimerRef.current) {
+        clearTimeout(saveProgressTimerRef.current);
+      }
+      
+      // Save final position on unmount
+      const finalPosition = window.scrollY;
+      
+      // 获取页面跳转信息
+      let navigatingTo = "未知";
+      try {
+        if (typeof document !== 'undefined') {
+          const activeElement = document.activeElement;
+          if (activeElement && activeElement.tagName === 'A') {
+            const href = (activeElement as HTMLAnchorElement).getAttribute('href');
+            if (href) {
+              navigatingTo = href;
+            }
+          }
+        }
+      } catch (e) {
+        console.error("获取导航信息时出错", e);
+      }
+      
+      console.log(`组件卸载详情 - 当前位置: ${finalPosition}, 导航至: ${navigatingTo}, 是否曾经滚动: ${hasScrolledRef.current}`);
+      
+      // 只有当滚动位置大于一个阈值时才保存
+      // 这可以防止在返回首页等情况下将位置重置为0
+      if (finalPosition > 10) {
+        console.log('卸载时保存阅读进度:', {
+          书籍: bookId,
+          章节: chapterId,
+          位置: finalPosition,
+          时间: new Date().toLocaleString(),
+          导航至: navigatingTo
+        });
+        
+        saveReadingProgress({
+          bookId,
+          chapterId,
+          lastPosition: finalPosition,
+          lastRead: new Date().toISOString()
+        });
+      } else {
+        // 如果当前位置很小，检查是否已有保存的阅读进度，避免覆盖
+        const existingProgress = getReadingProgress(bookId);
+        if (existingProgress && existingProgress.lastPosition > 10) {
+          console.log('卸载时检测到无效位置，保留现有阅读进度', {
+            书籍: bookId,
+            章节: chapterId,
+            当前位置: finalPosition,
+            已保存位置: existingProgress.lastPosition,
+            导航至: navigatingTo
+          });
+          // 不做任何更新，保留现有进度
+        } 
+        // 只有当用户已经进行过滚动交互，且位置为0时，才保存初始状态
+        // 这可以避免在组件初始化和卸载时错误地保存位置为0
+        else if (hasScrolledRef.current) {
+          console.log('卸载时保存初始阅读状态（从头开始）', {
+            书籍: bookId,
+            章节: chapterId,
+            位置: finalPosition,
+            时间: new Date().toLocaleString(),
+            导航至: navigatingTo
+          });
+          
+          saveReadingProgress({
+            bookId,
+            chapterId,
+            lastPosition: finalPosition,
+            lastRead: new Date().toISOString()
+          });
+        } else {
+          console.log('卸载时未保存位置为0的初始状态，因为用户未进行滚动交互');
+        }
+      }
     };
+  }, [bookId, chapterId]);
+
+  // Scroll to saved position on initial load
+  useEffect(() => {
+    // After component is mounted and content is loaded, try to restore scroll position
+    const timer = setTimeout(() => {
+      if (window.location.hash) {
+        const scrollPosition = parseInt(window.location.hash.replace('#position=', ''), 10);
+        if (!isNaN(scrollPosition)) {
+          window.scrollTo(0, scrollPosition);
+        }
+      }
+    }, 100);
+    
+    return () => clearTimeout(timer);
   }, []);
 
   // Check if audio element exists when component mounts
@@ -212,7 +352,7 @@ export default function BilingualReader({ content, chapterTitle, bookId }: Bilin
         const initAudioOnUserInteraction = () => {
           console.log('User interaction detected, initializing audio for iOS');
           // Create and play a silent audio file to initialize audio
-          const silentAudio = new Audio("data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4LjI5LjEwMAAAAAAAAAAAAAAA//tQwAAAAAAAAAAAAAAAAAAAAAAASW5mbwAAAA8AAAACAAABIADAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV6urq6urq6urq6urq6urq6urq6urq6urq6v///////////////////////////////////////////wAAADlMQVZDNTguNTQuMTAwAAAAAAAAAAAUBAj/4QAAMAAAAQAAAQAB//8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP/7UMQAAAppSqVGiACsCH2qVYYAQABkb3duAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVUUAAIAAABkb3duAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVU=");
+          const silentAudio = new Audio("data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4LjI5LjEwMAAAAAAAAAAAAAAA//tQwAAAAAAAAAAAAAAAAAAAAAAASW5mbwAAAA8AAAACAAABIADAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV6urq6urq6urq6urq6urq6urq6v///////////////////////////////////////////wAAADlMQVZDNTguNTQuMTAwAAAAAAAAAAAUBAj/4QAAMAAAAQAAAQAB//8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP/7UMQAAAppSqVGiACsCH2qVYYAQABkb3duAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVUUAAIAAABkb3duAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVU=");
           silentAudio.play().then(() => {
             audioInitializedRef.current = true;
             console.log('Silent audio initialized successfully for iOS');
