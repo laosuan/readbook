@@ -14,7 +14,7 @@ const BOOK_CONFIGS: BookConfig[] = [
   {
     id: '7',
     cdnUrl: 'https://cdn.readwordly.com/book_7_bilingual_data.json',
-    name: 'Principles',
+    name: 'Principles (2011 Free Version)',
     useSplitFiles: false
   },
   {

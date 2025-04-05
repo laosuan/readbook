@@ -64,7 +64,7 @@ export async function getVocabularyData(bookId?: string): Promise<VocabularyData
     // Principles
     return {
       ...emptyVocabularyData,
-      title: 'Principles',
+      title: 'Principles (2011 Free Version)',
       author: 'Ray Dalio'
     };
   }
