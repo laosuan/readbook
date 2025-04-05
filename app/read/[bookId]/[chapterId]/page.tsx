@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { books } from '../../../data/books';
 import { getChapter } from '../../../data/chapters';
@@ -9,7 +9,6 @@ import BilingualReader from '../../../components/BilingualReader';
 import LoadingSpinner from '../../../components/LoadingSpinner';
 import ErrorBoundary from '../../../components/ErrorBoundary';
 import { getReadingProgress } from '../../../lib/localStorage';
-import { useSearchParams } from 'next/navigation';
 
 export default function ReadPage({ params }: { params: Promise<{ bookId: string; chapterId: string }> }) {
   const [book, setBook] = useState<Book | null>(null);

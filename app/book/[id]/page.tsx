@@ -9,9 +9,9 @@ import { Chapter } from '../../types';
 export async function generateMetadata({
   params,
 }: {
-  params: { id: string }
+  params: Promise<{ id: string }>
 }): Promise<Metadata> {
-  const { id } = params;
+  const { id } = await params;
   const book = books.find((b) => b.id === id);
   
   if (!book) {
@@ -27,8 +27,8 @@ export async function generateMetadata({
 }
 
 // Server component that renders the client component
-export default async function BookDetail({ params }: { params: { id: string } }) {
-  const { id } = params;
+export default async function BookDetail({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const book = books.find((b) => b.id === id);
   
   // Only fetch chapter metadata for the book list page

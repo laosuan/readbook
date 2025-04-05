@@ -191,14 +191,13 @@ export default function BilingualReader({ content, chapterTitle, bookId, chapter
       const finalPosition = window.scrollY;
       
       // 获取页面跳转信息
-      let navigatingTo = "未知";
       try {
         if (typeof document !== 'undefined') {
           const activeElement = document.activeElement;
           if (activeElement && activeElement.tagName === 'A') {
             const href = (activeElement as HTMLAnchorElement).getAttribute('href');
             if (href) {
-              navigatingTo = href;
+              // Removed the navigatingTo variable as it's not used
             }
           }
         }
@@ -207,7 +206,7 @@ export default function BilingualReader({ content, chapterTitle, bookId, chapter
       }
       
       // 删除详细的卸载日志
-      // console.log(`组件卸载详情 - 当前位置: ${finalPosition}, 导航至: ${navigatingTo}, 是否曾经滚动: ${hasScrolledRef.current}`);
+      // console.log(`组件卸载详情 - 当前位置: ${finalPosition}, 是否曾经滚动: ${hasScrolledRef.current}`);
       
       // 只有当滚动位置大于一个阈值时才保存
       // 这可以防止在返回首页等情况下将位置重置为0
