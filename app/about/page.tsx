@@ -1,3 +1,10 @@
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: '关于我们 | 阅词名著',
+  description: '阅词名著致力于为中文读者提供高质量的英语经典名著阅读体验，通过中英对照阅读，提升理解和阅读能力。',
+};
+
 export default function About() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">

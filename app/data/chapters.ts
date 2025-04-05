@@ -261,7 +261,7 @@ async function createBookChapters(config: BookConfig): Promise<Chapter[]> {
     });
     
     // 验证是否所有内容都已正确处理
-    const totalParagraphsInChapters = chapters.reduce((total, chapter) => total + chapter.content.length, 0);
+    // const totalParagraphsInChapters = chapters.reduce((total, chapter) => total + chapter.content.length, 0);
     
     return chapters;
   }
