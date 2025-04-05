@@ -43,12 +43,15 @@ export const saveReadingProgress = (progress: ReadingProgress): void => {
     // 防止无效位置覆盖 - 重要改进
     // 如果新位置无效(接近0)，而之前已有有效的位置记录，则不更新
     if (isUpdate && oldProgress && progress.lastPosition < 10) {
-      console.log(`阻止无效位置覆盖 - 书籍ID: ${progress.bookId}`, {
-        原位置: oldProgress.lastPosition,
-        新位置: progress.lastPosition,
-        原章节: oldProgress.chapterId,
-        新章节: progress.chapterId
-      });
+      // 仅在开发环境下输出详细日志
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`阻止无效位置覆盖 - 书籍ID: ${progress.bookId}`, {
+          原位置: oldProgress.lastPosition,
+          新位置: progress.lastPosition,
+          原章节: oldProgress.chapterId,
+          新章节: progress.chapterId
+        });
+      }
       
       // 无论章节是否相同，只要新位置无效且旧位置有效，都不更新
       if (oldProgress.lastPosition > 10) {
@@ -58,19 +61,20 @@ export const saveReadingProgress = (progress: ReadingProgress): void => {
     
     if (isUpdate) {
       allProgress[existingIndex] = progress;
-      console.log(`更新阅读进度 - 书籍ID: ${progress.bookId}`, {
-        章节: progress.chapterId,
-        位置: progress.lastPosition,
-        时间: new Date(progress.lastRead).toLocaleString(),
-        旧位置: oldProgress ? oldProgress.lastPosition : '无'
-      });
+      // 减少不必要的日志，仅保留开发环境下的关键信息
+      // console.log(`更新阅读进度 - 书籍ID: ${progress.bookId}`, {
+      //   章节: progress.chapterId,
+      //   位置: progress.lastPosition,
+      //   时间: new Date(progress.lastRead).toLocaleString(),
+      //   旧位置: oldProgress ? oldProgress.lastPosition : '无'
+      // });
     } else {
       allProgress.push(progress);
-      console.log(`新增阅读进度 - 书籍ID: ${progress.bookId}`, {
-        章节: progress.chapterId,
-        位置: progress.lastPosition,
-        时间: new Date(progress.lastRead).toLocaleString()
-      });
+      // console.log(`新增阅读进度 - 书籍ID: ${progress.bookId}`, {
+      //   章节: progress.chapterId,
+      //   位置: progress.lastPosition,
+      //   时间: new Date(progress.lastRead).toLocaleString()
+      // });
     }
     
     localStorage.setItem(STORAGE_KEY, JSON.stringify(allProgress));
@@ -87,12 +91,12 @@ export const getReadingProgress = (bookId: string): ReadingProgress | null => {
     const allProgress = initStorage();
     const bookProgress = allProgress.find(p => p.bookId === bookId);
     
-    // 添加日志，显示获取到的阅读进度信息
-    console.log(`获取阅读进度 - 书籍ID: ${bookId}`, bookProgress ? {
-      章节: bookProgress.chapterId,
-      位置: bookProgress.lastPosition,
-      时间: new Date(bookProgress.lastRead).toLocaleString()
-    } : '无保存的阅读进度');
+    // 添加日志，显示获取到的阅读进度信息 - 减少日志输出
+    // console.log(`获取阅读进度 - 书籍ID: ${bookId}`, bookProgress ? {
+    //   章节: bookProgress.chapterId,
+    //   位置: bookProgress.lastPosition,
+    //   时间: new Date(bookProgress.lastRead).toLocaleString()
+    // } : '无保存的阅读进度');
     
     return bookProgress || null;
   } catch (error) {

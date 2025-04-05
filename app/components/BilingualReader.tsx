@@ -108,8 +108,8 @@ export default function BilingualReader({ content, chapterTitle, bookId, chapter
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    // 组件挂载时记录日志
-    console.log(`BilingualReader 组件已挂载 - 书籍: ${bookId}, 章节: ${chapterId}`);
+    // 组件挂载时记录日志 - 简化日志
+    // console.log(`BilingualReader 组件已挂载 - 书籍: ${bookId}, 章节: ${chapterId}`);
     
     // 重置滚动状态
     hasScrolledRef.current = false;
@@ -117,7 +117,7 @@ export default function BilingualReader({ content, chapterTitle, bookId, chapter
     // 尝试获取现有的阅读进度，避免重置
     const existingProgress = getReadingProgress(bookId);
     if (existingProgress && existingProgress.lastPosition > 10) {
-      console.log(`BilingualReader 挂载时找到现有阅读进度 - 书籍: ${bookId}, 位置: ${existingProgress.lastPosition}px`);
+      // console.log(`BilingualReader 挂载时找到现有阅读进度 - 书籍: ${bookId}, 位置: ${existingProgress.lastPosition}px`);
       // 我们不在这里设置滚动位置，那是ReadPage组件的责任
     }
     
@@ -157,12 +157,13 @@ export default function BilingualReader({ content, chapterTitle, bookId, chapter
       saveProgressTimerRef.current = setTimeout(() => {
         // Only save position if it's meaningful (not at the very top)
         if (currentScrollPos > 10) {
-          console.log('滚动时保存阅读进度:', {
-            书籍: bookId,
-            章节: chapterId,
-            位置: currentScrollPos,
-            时间: new Date().toLocaleString()
-          });
+          // 减少详细的滚动位置日志
+          // console.log('滚动时保存阅读进度:', {
+          //   书籍: bookId,
+          //   章节: chapterId,
+          //   位置: currentScrollPos,
+          //   时间: new Date().toLocaleString()
+          // });
           
           saveReadingProgress({
             bookId,
@@ -176,7 +177,7 @@ export default function BilingualReader({ content, chapterTitle, bookId, chapter
 
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => {
-      console.log(`BilingualReader 组件即将卸载 - 书籍: ${bookId}, 章节: ${chapterId}`);
+      // console.log(`BilingualReader 组件即将卸载 - 书籍: ${bookId}, 章节: ${chapterId}`);
       
       window.removeEventListener('scroll', handleScroll);
       if (scrollTimerRef.current) {
@@ -205,18 +206,19 @@ export default function BilingualReader({ content, chapterTitle, bookId, chapter
         console.error("获取导航信息时出错", e);
       }
       
-      console.log(`组件卸载详情 - 当前位置: ${finalPosition}, 导航至: ${navigatingTo}, 是否曾经滚动: ${hasScrolledRef.current}`);
+      // 删除详细的卸载日志
+      // console.log(`组件卸载详情 - 当前位置: ${finalPosition}, 导航至: ${navigatingTo}, 是否曾经滚动: ${hasScrolledRef.current}`);
       
       // 只有当滚动位置大于一个阈值时才保存
       // 这可以防止在返回首页等情况下将位置重置为0
       if (finalPosition > 10) {
-        console.log('卸载时保存阅读进度:', {
-          书籍: bookId,
-          章节: chapterId,
-          位置: finalPosition,
-          时间: new Date().toLocaleString(),
-          导航至: navigatingTo
-        });
+        // console.log('卸载时保存阅读进度:', {
+        //   书籍: bookId,
+        //   章节: chapterId,
+        //   位置: finalPosition,
+        //   时间: new Date().toLocaleString(),
+        //   导航至: navigatingTo
+        // });
         
         saveReadingProgress({
           bookId,
@@ -228,25 +230,25 @@ export default function BilingualReader({ content, chapterTitle, bookId, chapter
         // 如果当前位置很小，检查是否已有保存的阅读进度，避免覆盖
         const existingProgress = getReadingProgress(bookId);
         if (existingProgress && existingProgress.lastPosition > 10) {
-          console.log('卸载时检测到无效位置，保留现有阅读进度', {
-            书籍: bookId,
-            章节: chapterId,
-            当前位置: finalPosition,
-            已保存位置: existingProgress.lastPosition,
-            导航至: navigatingTo
-          });
+          // console.log('卸载时检测到无效位置，保留现有阅读进度', {
+          //   书籍: bookId,
+          //   章节: chapterId,
+          //   当前位置: finalPosition,
+          //   已保存位置: existingProgress.lastPosition,
+          //   导航至: navigatingTo
+          // });
           // 不做任何更新，保留现有进度
         } 
         // 只有当用户已经进行过滚动交互，且位置为0时，才保存初始状态
         // 这可以避免在组件初始化和卸载时错误地保存位置为0
         else if (hasScrolledRef.current) {
-          console.log('卸载时保存初始阅读状态（从头开始）', {
-            书籍: bookId,
-            章节: chapterId,
-            位置: finalPosition,
-            时间: new Date().toLocaleString(),
-            导航至: navigatingTo
-          });
+          // console.log('卸载时保存初始阅读状态（从头开始）', {
+          //   书籍: bookId,
+          //   章节: chapterId,
+          //   位置: finalPosition,
+          //   时间: new Date().toLocaleString(),
+          //   导航至: navigatingTo
+          // });
           
           saveReadingProgress({
             bookId,
@@ -255,7 +257,7 @@ export default function BilingualReader({ content, chapterTitle, bookId, chapter
             lastRead: new Date().toISOString()
           });
         } else {
-          console.log('卸载时未保存位置为0的初始状态，因为用户未进行滚动交互');
+          // console.log('卸载时未保存位置为0的初始状态，因为用户未进行滚动交互');
         }
       }
     };
@@ -352,7 +354,7 @@ export default function BilingualReader({ content, chapterTitle, bookId, chapter
         const initAudioOnUserInteraction = () => {
           console.log('User interaction detected, initializing audio for iOS');
           // Create and play a silent audio file to initialize audio
-          const silentAudio = new Audio("data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4LjI5LjEwMAAAAAAAAAAAAAAA//tQwAAAAAAAAAAAAAAAAAAAAAAASW5mbwAAAA8AAAACAAABIADAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV6urq6urq6urq6urq6urq6urq6v///////////////////////////////////////////wAAADlMQVZDNTguNTQuMTAwAAAAAAAAAAAUBAj/4QAAMAAAAQAAAQAB//8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP/7UMQAAAppSqVGiACsCH2qVYYAQABkb3duAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVUUAAIAAABkb3duAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVU=");
+          const silentAudio = new Audio("data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4LjI5LjEwMAAAAAAAAAAAAAAA//tQwAAAAAAAAAAAAAAAAAAAAAAASW5mbwAAAA8AAAACAAABIADAwMDAwMDAwMDAwMDAwMDAwMDAwMDV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV6urq6urq6urq6urq6urq6urq6v///////////////////////////////////////////wAAADlMQVZDNTguNTQuMTAwAAAAAAAAAAAUBAj/4QAAMAAAAQAAAQAB//8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP/7UMQAAAppSqVGiACsCH2qVYYAQABkb3duAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVUUAAIAAABkb3duAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVU=");
           silentAudio.play().then(() => {
             audioInitializedRef.current = true;
             console.log('Silent audio initialized successfully for iOS');
@@ -612,7 +614,7 @@ export default function BilingualReader({ content, chapterTitle, bookId, chapter
       console.log('iOS Safari detected but audio not initialized - trying to initialize');
       
       // For iOS, we need user interaction to initialize audio
-      const silentAudio = new Audio("data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4LjI5LjEwMAAAAAAAAAAAAAAA//tQwAAAAAAAAAAAAAAAAAAAAAAASW5mbwAAAA8AAAACAAABIADAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV6urq6urq6urq6urq6urq6urq6urq6urq6v///////////////////////////////////////////wAAADlMQVZDNTguNTQuMTAwAAAAAAAAAAAUBAj/4QAAMAAAAQAAAQAB//8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP/7UMQAAAppSqVGiACsCH2qVYYAQABkb3duAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVUUAAIAAABkb3duAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVU=");
+      const silentAudio = new Audio("data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4LjI5LjEwMAAAAAAAAAAAAAAA//tQwAAAAAAAAAAAAAAAAAAAAAAASW5mbwAAAA8AAAACAAABIADAwMDAwMDAwMDAwMDAwMDAwMDAwMDV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV6urq6urq6urq6urq6urq6urq6urq6v///////////////////////////////////////////wAAADlMQVZDNTguNTQuMTAwAAAAAAAAAAAUBAj/4QAAMAAAAQAAAQAB//8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP/7UMQAAAppSqVGiACsCH2qVYYAQABkb3duAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVUUAAIAAABkb3duAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVU=");
       try {
         await silentAudio.play();
         audioInitializedRef.current = true;
@@ -745,19 +747,19 @@ export default function BilingualReader({ content, chapterTitle, bookId, chapter
 
   // Extract chapter information from content to limit vocabulary requests to current chapter only
   const currentChapterInfo = useMemo(() => {
-    console.log(`[ChapterInfo] Extracting chapter info for book ${bookId};content: ${content}`);
+    // console.log(`[ChapterInfo] Extracting chapter info for book ${bookId};content: ${content}`);
     // log content detail
-    console.log(`[ChapterInfo] Content details:`, content);
+    // console.log(`[ChapterInfo] Content details:`, content);
     if (!content || content.length === 0 || !(bookId === '8' || bookId === '9')) return null;
     
     // Get the first paragraph ID to extract part and chapter
     const firstParagraphId = content[0]?.id;
-    console.log(`[ChapterInfo] Book ${bookId}: First paragraph ID: ${firstParagraphId}`);
+    // console.log(`[ChapterInfo] Book ${bookId}: First paragraph ID: ${firstParagraphId}`);
     
     if (!firstParagraphId) return null;
     
     const idParts = firstParagraphId.split('-');
-    console.log(`[ChapterInfo] ID parts:`, idParts);
+    // console.log(`[ChapterInfo] ID parts:`, idParts);
     
     // For The Little Prince, the ID format is different: bookId-chapterNumber-paragraphNumber
     if (bookId === '9') {

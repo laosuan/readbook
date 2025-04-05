@@ -35,7 +35,8 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string;
       if (hash && hash.startsWith('#position=')) {
         const position = parseInt(hash.replace('#position=', ''), 10);
         if (!isNaN(position) && position > 10) {  // 只在位置有效且大于阈值时使用
-          console.log(`从URL哈希获取阅读位置: ${position}px`);
+          // 减少日志输出
+          // console.log(`从URL哈希获取阅读位置: ${position}px`);
           setSavedPosition(position);
           // 在获取位置后立即清除hash，避免刷新页面时再次跳转
           // 这可以防止一些边缘情况下的位置重置问题
@@ -45,10 +46,10 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string;
             window.location.pathname + window.location.search
           );
         } else {
-          console.log(`URL哈希中的位置无效或太小: ${position}px`);
+          // console.log(`URL哈希中的位置无效或太小: ${position}px`);
         }
       } else {
-        console.log('URL中没有位置哈希参数');
+        // console.log('URL中没有位置哈希参数');
       }
     }
   }, []);
@@ -67,6 +68,7 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string;
       try {
         // Extract params
         const { bookId, chapterId } = await params;
+        // 仅保留重要的日志
         console.log(`加载阅读页面数据 - 书籍ID: ${bookId}, 章节ID: ${chapterId}`);
         
         // Find the book by ID
@@ -76,11 +78,11 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string;
           
           // Get the specific chapter directly without loading all chapters
           const chapterNumber = parseInt(chapterId, 10);
-          console.log(`正在加载章节 ${bookId}-${chapterNumber}`);
+          // console.log(`正在加载章节 ${bookId}-${chapterNumber}`);
           const foundChapter = await getChapter(bookId, chapterNumber);
         
           if (foundChapter && foundChapter.content && foundChapter.content.length > 0) {
-            console.log(`成功加载章节 ${bookId}-${chapterNumber}，含 ${foundChapter.content.length} 个段落`);
+            // console.log(`成功加载章节 ${bookId}-${chapterNumber}，含 ${foundChapter.content.length} 个段落`);
             
             // Set chapter to state
             setChapter(foundChapter);
@@ -100,7 +102,7 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string;
             
             // If no position from hash, check from localStorage
             if (savedPosition === null || savedPosition < 10) {
-              console.log('从哈希获取的位置无效，尝试从localStorage获取阅读进度');
+              // console.log('从哈希获取的位置无效，尝试从localStorage获取阅读进度');
               const progress = getReadingProgress(bookId);
               
               // 无论章节是否匹配，只要有有效的位置，就优先使用它
@@ -129,14 +131,14 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string;
                   }
                 } else {
                   // 章节匹配，使用保存的位置
-                  console.log(`从localStorage获取到有效的阅读位置: ${progress.lastPosition}px`);
+                  // console.log(`从localStorage获取到有效的阅读位置: ${progress.lastPosition}px`);
                   setSavedPosition(progress.lastPosition);
                 }
               } else {
-                console.log('localStorage中没有找到有效的阅读进度，将从头开始阅读');
+                // console.log('localStorage中没有找到有效的阅读进度，将从头开始阅读');
               }
             } else {
-              console.log(`使用从URL哈希获取的阅读位置: ${savedPosition}px`);
+              // console.log(`使用从URL哈希获取的阅读位置: ${savedPosition}px`);
             }
           } else {
             console.error(`章节 ${bookId}-${chapterNumber} 已找到但没有内容`);
@@ -160,11 +162,11 @@ export default function ReadPage({ params }: { params: Promise<{ bookId: string;
   // Effect to scroll to the saved position after content loads
   useEffect(() => {
     if (savedPosition !== null && !isLoading) {
-      // log it
-      console.log(`准备恢复滚动位置至: ${savedPosition}px`);
+      // 删除日志
+      // console.log(`准备恢复滚动位置至: ${savedPosition}px`);
       // Short delay to ensure content is rendered
       const timer = setTimeout(() => {
-        console.log(`恢复滚动位置至: ${savedPosition}px`);
+        // console.log(`恢复滚动位置至: ${savedPosition}px`);
         window.scrollTo(0, savedPosition);
       }, 100);
       
