@@ -13,7 +13,7 @@ interface BookConfig {
 const BOOK_CONFIGS: BookConfig[] = [
   {
     id: '7',
-    cdnUrl: 'https://cdn.readwordly.com/principles_bilingual_data.json',
+    cdnUrl: 'https://cdn.readwordly.com/book_7_bilingual_data.json',
     name: 'Principles',
     useSplitFiles: false
   },
