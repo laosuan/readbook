@@ -41,6 +41,11 @@ async function fetchBookData(config: BookConfig, part?: number, chapter?: number
   try {
     let url = config.cdnUrl;
     
+    // 如果URL以/app开头，说明是本地文件，需要调整路径
+    if (url.startsWith('/app')) {
+      url = '.' + url; // 转为相对路径 例如 ./app/data/...
+    }
+    
     // 如果使用分割文件，则构建URL
     if (config.useSplitFiles && config.cdnBaseUrl) {
       if (config.id === '9' && chapter !== undefined) {
@@ -68,6 +73,7 @@ async function fetchBookData(config: BookConfig, part?: number, chapter?: number
         const response = await fetch(url);
         if (response.ok) {
           const data = await response.json();
+          console.log(`Successfully fetched data from ${url} (${config.name})`);
           return data;
         } else {
           // 对于404错误，直接标记为失败并返回，不重试
@@ -116,33 +122,42 @@ async function fetchBookData(config: BookConfig, part?: number, chapter?: number
 async function processBookData(config: BookConfig, part?: number, chapter?: number): Promise<BilingualContent[]> {
   const content: BilingualContent[] = [];
   
-  // 获取数据
-  const bookData = await fetchBookData(config, part, chapter);
-  
-  // 检查数据格式
-  if (!bookData.paragraphs) {
-    console.error(`Invalid ${config.name} data format: paragraphs array not found`);
+  try {
+    // 获取数据
+    const bookData = await fetchBookData(config, part, chapter);
+    
+    // 检查数据格式
+    if (!bookData.paragraphs) {
+      console.error(`Invalid ${config.name} data format: paragraphs array not found`);
+      return [];
+    }
+
+    // 遍历段落数组
+    bookData.paragraphs.forEach((paragraph: { id: string | number; source: string; translation: string }) => {
+      // 确保段落有source和translation字段
+      if (paragraph.source && paragraph.translation) {
+        // 确保 id 是字符串
+        const paragraphId = paragraph.id.toString();
+        
+        // 如果使用分割文件，则使用正确的ID格式
+        const id = config.useSplitFiles && part && chapter
+          ? `${config.id}-${part}-${chapter}-${paragraphId}`
+          : `${config.id}-1-${paragraphId}`;
+
+        content.push({
+          id: id,
+          english: paragraph.source, // 英文原文
+          chinese: paragraph.translation, // 中文翻译
+        });
+      }
+    });
+    
+    console.log(`Processed ${content.length} paragraphs for ${config.name}`);
+    return content;
+  } catch (error) {
+    console.error(`Error processing data for ${config.name}:`, error);
     return [];
   }
-
-  // 遍历段落数组
-  bookData.paragraphs.forEach((paragraph: { id: string; source: string; translation: string }) => {
-    // 确保段落有source和translation字段
-    if (paragraph.source && paragraph.translation) {
-      // 如果使用分割文件，则使用正确的ID格式
-      const id = config.useSplitFiles && part && chapter
-        ? `${config.id}-${part}-${chapter}-${paragraph.id}`
-        : `${config.id}-1-${paragraph.id}`;
-
-      content.push({
-        id: id,
-        english: paragraph.source, // 英文原文
-        chinese: paragraph.translation, // 中文翻译
-      });
-    }
-  });
-  
-  return content;
 }
 
 // 通用函数：构建章节内容
@@ -195,21 +210,29 @@ async function createBookChapters(config: BookConfig): Promise<Chapter[]> {
     
     // 根据Principles的结构定义章节
     const principlesStructure = [
-      { title: "Introduction", startId: 7, endId: 29 },
+      { title: "Introduction", startId: 1, endId: 29 },
       { title: "Part 1: The Importance of Principles", startId: 30, endId: 54 },
       { title: "Part 2: My Most Fundamental Life Principles", startId: 55, endId: 308 },
-      { title: "Part 3: My Management Principles", startId: 309, endId: 2000 } // 使用一个较大的数字作为结束，以包含所有剩余内容
+      { title: "Part 3: My Management Principles", startId: 309, endId: 9999 } // 使用更大的数字确保包含所有内容
     ];
     
     // 创建各章节
     principlesStructure.forEach((section, index) => {
       // 查找章节的开始和结束索引
-      const startIndex = allContent.findIndex(item => parseInt(item.id.split('-').pop() || '0', 10) === section.startId);
+      const startIndex = allContent.findIndex(item => {
+        const paragraphId = parseInt(item.id.split('-').pop() || '0', 10);
+        return paragraphId === section.startId;
+      });
+      
       let endIndex = allContent.length;
       
       // 如果不是最后一章，找到下一章的起始位置
       if (index < principlesStructure.length - 1) {
-        const nextStartIndex = allContent.findIndex(item => parseInt(item.id.split('-').pop() || '0', 10) === principlesStructure[index + 1].startId);
+        const nextStartIndex = allContent.findIndex(item => {
+          const paragraphId = parseInt(item.id.split('-').pop() || '0', 10);
+          return paragraphId === principlesStructure[index + 1].startId;
+        });
+        
         if (nextStartIndex > -1) {
           endIndex = nextStartIndex;
         }
@@ -217,7 +240,7 @@ async function createBookChapters(config: BookConfig): Promise<Chapter[]> {
       
       // 如果找不到章节标记，则跳过
       if (startIndex === -1) {
-        console.warn(`Could not find start of section: ${section.title}`);
+        console.warn(`Could not find start of section: ${section.title} with startId ${section.startId}`);
         return;
       }
       
@@ -235,8 +258,12 @@ async function createBookChapters(config: BookConfig): Promise<Chapter[]> {
         content: chapterContent
       });
       
-      console.log(`Created Principles chapter: ${section.title} with ${chapterContent.length} paragraphs`);
+      console.log(`Created Principles chapter: ${section.title} with ${chapterContent.length} paragraphs (from ID ${section.startId})`);
     });
+    
+    // 验证是否所有内容都已正确处理
+    const totalParagraphsInChapters = chapters.reduce((total, chapter) => total + chapter.content.length, 0);
+    console.log(`Principles: Total paragraphs in chapters: ${totalParagraphsInChapters} / ${allContent.length}`);
     
     return chapters;
   }

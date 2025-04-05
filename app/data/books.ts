@@ -9,7 +9,7 @@ export const books: Book[] = [
     description: '《原则》是桥水基金创始人雷·达利欧的著作，记录了他在生活、管理和投资方面的原则。这本书阐述了达利欧如何通过建立清晰的原则，应对各种挑战和决策，并在商业和生活中取得成功。书中提供了实用的智慧和思考框架，帮助读者在面对复杂世界时做出更好的决策。',
     publishYear: 2017,
     language: 'English',
-    totalChapters: 35,
+    totalChapters: 4,
     category: ['Business', 'Self-help', 'Finance'],
   },
   {
