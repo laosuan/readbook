@@ -108,7 +108,7 @@ async function synthesizeTextChunk(text: string, voice: string): Promise<string>
       try {
         // 合成语音
         await tts.synthesize(text, voice, {
-          rate: '0%',  // 中性速率
+          rate: '-20%',  // 减慢语音速度
           volume: '0%', // 中性音量
           pitch: '0Hz'  // 中性音调 - 必须在 -100Hz 到 100Hz 范围内
         });

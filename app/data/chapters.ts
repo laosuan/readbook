@@ -258,12 +258,10 @@ async function createBookChapters(config: BookConfig): Promise<Chapter[]> {
         content: chapterContent
       });
       
-      console.log(`Created Principles chapter: ${section.title} with ${chapterContent.length} paragraphs (from ID ${section.startId})`);
     });
     
     // 验证是否所有内容都已正确处理
     const totalParagraphsInChapters = chapters.reduce((total, chapter) => total + chapter.content.length, 0);
-    console.log(`Principles: Total paragraphs in chapters: ${totalParagraphsInChapters} / ${allContent.length}`);
     
     return chapters;
   }
