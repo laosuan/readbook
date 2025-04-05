@@ -13,8 +13,8 @@ interface BookConfig {
 const BOOK_CONFIGS: BookConfig[] = [
   {
     id: '7',
-    cdnUrl: 'https://cdn.readwordly.com/MadameBovary_translate_cache_gpt4omini.json',
-    name: 'GPT-4o mini',
+    cdnUrl: 'https://cdn.readwordly.com/principles_bilingual_data.json',
+    name: 'Principles',
     useSplitFiles: false
   },
   {
@@ -185,6 +185,59 @@ async function createBookChapters(config: BookConfig): Promise<Chapter[]> {
     }
     
     console.log(`Created ${chapters.length} chapter metadata objects for ${config.name} without loading content`);
+    return chapters;
+  }
+  
+  // 对于Principles (ID 7)，使用特殊的处理逻辑
+  if (config.id === '7') {
+    // 获取所有内容
+    const allContent = await processBookData(config);
+    
+    // 根据Principles的结构定义章节
+    const principlesStructure = [
+      { title: "Introduction", startId: 7, endId: 29 },
+      { title: "Part 1: The Importance of Principles", startId: 30, endId: 54 },
+      { title: "Part 2: My Most Fundamental Life Principles", startId: 55, endId: 308 },
+      { title: "Part 3: My Management Principles", startId: 309, endId: 2000 } // 使用一个较大的数字作为结束，以包含所有剩余内容
+    ];
+    
+    // 创建各章节
+    principlesStructure.forEach((section, index) => {
+      // 查找章节的开始和结束索引
+      const startIndex = allContent.findIndex(item => parseInt(item.id.split('-').pop() || '0', 10) === section.startId);
+      let endIndex = allContent.length;
+      
+      // 如果不是最后一章，找到下一章的起始位置
+      if (index < principlesStructure.length - 1) {
+        const nextStartIndex = allContent.findIndex(item => parseInt(item.id.split('-').pop() || '0', 10) === principlesStructure[index + 1].startId);
+        if (nextStartIndex > -1) {
+          endIndex = nextStartIndex;
+        }
+      }
+      
+      // 如果找不到章节标记，则跳过
+      if (startIndex === -1) {
+        console.warn(`Could not find start of section: ${section.title}`);
+        return;
+      }
+      
+      // 创建章节内容
+      const chapterContent = allContent.slice(startIndex, endIndex).map((item) => ({
+        ...item
+      }));
+      
+      // 添加章节
+      chapters.push({
+        id: `${config.id}-${index + 1}`,
+        bookId: config.id,
+        chapterNumber: index + 1,
+        title: section.title,
+        content: chapterContent
+      });
+      
+      console.log(`Created Principles chapter: ${section.title} with ${chapterContent.length} paragraphs`);
+    });
+    
     return chapters;
   }
   

@@ -1,7 +1,7 @@
 // Define CDN base URLs for vocabulary files by book ID
 const CDN_BASE_URLS: Record<string, string> = {
-  // Madame Bovary (IDs 7 and 8 from books.ts)
-  '7': 'https://cdn.readwordly.com/MadameBovary/20250310/',
+  // Principles (ID 7) - No vocabulary support
+  // Madame Bovary (ID 8)
   '8': 'https://cdn.readwordly.com/MadameBovary/20250310/',
   // The Little Prince (ID 9 from books.ts)
   '9': 'https://cdn.readwordly.com/TheLittlePrince/20250403/',
@@ -53,12 +53,19 @@ export async function getVocabularyData(bookId?: string): Promise<VocabularyData
       title: 'The Little Prince',
       author: 'Antoine de Saint-Exupéry'
     };
-  } else if (bookId === '7' || bookId === '8') {
+  } else if (bookId === '8') {
     // Madame Bovary
     return {
       ...emptyVocabularyData,
       title: 'Madame Bovary',
       author: 'Gustave Flaubert'
+    };
+  } else if (bookId === '7') {
+    // Principles
+    return {
+      ...emptyVocabularyData,
+      title: 'Principles',
+      author: 'Ray Dalio'
     };
   }
   
@@ -87,8 +94,13 @@ export async function getVocabularyForParagraph(paragraphId: string): Promise<Ke
       let chapter: string;
       let numericId: number;
       
-      // For Madame Bovary (books 7 & 8), use 4-part format: bookId-part-chapter-paragraphId
-      if ((bookId === '7' || bookId === '8') && idParts.length >= 4) {
+      // For Principles (book 7), use a different format: bookId-section-paragraphId
+      if (bookId === '7') {
+        // Principles doesn't use vocabulary, so return empty array
+        return [];
+      }
+      // For Madame Bovary (book 8), use 4-part format: bookId-part-chapter-paragraphId
+      else if (bookId === '8' && idParts.length >= 4) {
         part = idParts[1];
         chapter = idParts[2];
         numericId = parseInt(idParts[3], 10);
