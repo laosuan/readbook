@@ -704,7 +704,7 @@ export default function BilingualReader({ content, chapterTitle, bookId, chapter
 
   // Set up intersection observer to track visible paragraphs
   useEffect(() => {
-    if (typeof window === 'undefined' || !showVocabulary || !(bookId === '8' || bookId === '9')) return;
+    if (typeof window === 'undefined' || !showVocabulary || !(bookId === '7' || bookId === '8' || bookId === '9')) return;
     
     const observerOptions = {
       root: null, // viewport
@@ -744,67 +744,107 @@ export default function BilingualReader({ content, chapterTitle, bookId, chapter
     };
   }, [showVocabulary, bookId, visibleParagraphs]);
 
-  // Extract chapter information from content to limit vocabulary requests to current chapter only
+  // Extract chapter or part information from content to limit vocabulary requests
   const currentChapterInfo = useMemo(() => {
-    // console.log(`[ChapterInfo] Extracting chapter info for book ${bookId};content: ${content}`);
-    // log content detail
-    // console.log(`[ChapterInfo] Content details:`, content);
-    if (!content || content.length === 0 || !(bookId === '8' || bookId === '9')) return null;
-    
-    // Get the first paragraph ID to extract part and chapter
+    // console.log(`[ChapterInfo] Extracting chapter/part info for book ${bookId}`);
+    if (!content || content.length === 0) return null;
+
+    // Check if *any* book IDs that use vocabulary are present
+    const supportedBookIds = ['7', '8', '9']; // Add '7' for Principles
+    if (!supportedBookIds.includes(bookId)) return null;
+
     const firstParagraphId = content[0]?.id;
-    // console.log(`[ChapterInfo] Book ${bookId}: First paragraph ID: ${firstParagraphId}`);
-    
     if (!firstParagraphId) return null;
-    
+
     const idParts = firstParagraphId.split('-');
-    // console.log(`[ChapterInfo] ID parts:`, idParts);
-    
-    // For The Little Prince, the ID format is different: bookId-chapterNumber-paragraphNumber
-    if (bookId === '9') {
-      // Check if we have at least 3 parts (bookId-chapterNumber-paragraphNumber)
-      
-      // For The Little Prince, the chapter is the second part of the ID
-      const chapterInfo = {
-        part: '0', // The Little Prince doesn't use parts, so we use '0' as a placeholder
-        chapter: idParts[1]
-      };
-      return chapterInfo;
+
+    // Handle Principles (bookId 7): bookId-partIndex-paragraphIdSuffix
+    if (bookId === '7') {
+      if (idParts.length >= 3) {
+        return {
+            partIndex: idParts[1], // Use partIndex for Principles
+            part: '0', // Not used for Principles lookup
+            chapter: '0' // Not used for Principles lookup
+        };
+      } else {
+        console.warn(`[ChapterInfo] Invalid ID format for Principles: ${firstParagraphId}`);
+        return null;
+      }
     }
-    
-    // For Madame Bovary, we need both part and chapter
-    const chapterInfo = {
-      part: idParts[1],
-      chapter: idParts[2]
-    };
-    return chapterInfo;
+    // Handle The Little Prince (bookId 9): bookId-chapterNumber-paragraphNumber
+    else if (bookId === '9') {
+      if (idParts.length >= 3) {
+          return {
+              partIndex: '0', // Not used for Little Prince
+              part: '0', // Little Prince doesn't use parts
+              chapter: idParts[1]
+          };
+      } else {
+          console.warn(`[ChapterInfo] Invalid ID format for The Little Prince: ${firstParagraphId}`);
+          return null;
+      }
+    }
+    // Handle Madame Bovary (bookId 8): bookId-part-chapter-paragraphNumber
+    else if (bookId === '8') {
+        if (idParts.length >= 4) {
+            return {
+                partIndex: '0', // Not used for Madame Bovary
+                part: idParts[1],
+                chapter: idParts[2]
+            };
+        } else {
+             console.warn(`[ChapterInfo] Invalid ID format for Madame Bovary: ${firstParagraphId}`);
+             return null;
+        }
+    }
+
+    return null; // Fallback
   }, [content, bookId]);
 
-  // Update vocabulary items when visible paragraphs change
+  // Effect to fetch vocabulary for visible paragraphs
   useEffect(() => {
-    if (!showVocabulary || !(bookId === '8' || bookId === '9') || !currentChapterInfo) {
+    // Check if vocabulary should be shown and if the book supports it
+    const supportedBookIds = ['7', '8', '9']; // Add '7' here as well
+    if (!showVocabulary || !supportedBookIds.includes(bookId) || !currentChapterInfo) {
+      // console.log('[Vocab Fetch Effect] Vocabulary disabled or book not supported.');
       return;
     }
-    
+
     // Use a debounce timer to avoid excessive API calls
     let debounceTimer: NodeJS.Timeout | null = null;
     
     const fetchVocabulary = async () => {
-
       // Keep existing vocabulary items
       const newVocabularyItems = {...vocabularyItems};
 
       // Get visible paragraphs and add adjacent paragraphs for preloading
       const visibleParagraphIds = Array.from(visibleParagraphs);
-      const paragraphIdsToCheck = new Set(visibleParagraphIds);
+      const paragraphIdsToCheck = new Set<string>(visibleParagraphIds);
       
-      // Add a few paragraphs ahead for preloading
+      // Generate IDs for adjacent paragraphs to preload
       visibleParagraphIds.forEach(paragraphId => {
         const idParts = paragraphId.split('-');
         
         // Handle different ID formats based on book ID
-        if (bookId === '9') {
-          // For The Little Prince: bookId-chapterNumber-paragraphNumber
+        if (bookId === '7') {
+          // Principles: bookId-partIndex-paragraphIdSuffix
+          if (idParts.length >= 3) {
+            const theBookId = idParts[0];
+            const partIndex = idParts[1];
+            const numStr = idParts[2];
+            const paragraphNum = parseInt(numStr, 10);
+            
+            // Add 5 paragraphs ahead for preloading within the same partIndex
+            for (let i = 1; i <= 5; i++) {
+              const adjacentNum = paragraphNum + i;
+              if (adjacentNum > 0) { // Basic check, actual existence checked by vocab fetch
+                const adjacentId = `${theBookId}-${partIndex}-${adjacentNum}`;
+                paragraphIdsToCheck.add(adjacentId);
+              }
+            }
+          }
+        } else if (bookId === '9') {
+          // The Little Prince: bookId-chapterNumber-paragraphNumber
           if (idParts.length >= 3) {
             const theBookId = idParts[0];
             const chapter = idParts[1];
@@ -843,19 +883,24 @@ export default function BilingualReader({ content, chapterTitle, bookId, chapter
         }
       });
       
-      
-      // Get only paragraphs that aren't already loaded and belong to the current chapter
+      // Get only paragraphs that aren't already loaded and belong to the current chapter/part
       const paragraphsToFetch = Array.from(paragraphIdsToCheck).filter(paragraphId => {
         // Skip if already loaded
         if (newVocabularyItems[paragraphId]) {
           return false;
         }
         
-        // Verify paragraph belongs to current chapter
+        // Verify paragraph belongs to current chapter/part
         const idParts = paragraphId.split('-');
         
         // Handle different ID formats
-        if (bookId === '9') {
+        if (bookId === '7') {
+          // Principles: bookId-partIndex-paragraphIdSuffix
+          if (idParts.length < 3) return false;
+          const paragraphPartIndex = idParts[1];
+          // Check if the partIndex matches the current view
+          return paragraphPartIndex === currentChapterInfo?.partIndex;
+        } else if (bookId === '9') {
           // For The Little Prince: bookId-chapterNumber-paragraphNumber
           if (idParts.length < 3) {
             return false;
@@ -1201,8 +1246,8 @@ export default function BilingualReader({ content, chapterTitle, bookId, chapter
           {content.map((item) => {
             // Get vocabulary for this paragraph
             // This is important because the vocabulary is used in both English and Chinese display
-            // Change isVocabBook to include both Madame Bovary and The Little Prince
-            const isVocabBook = bookId === '8' || bookId === '9';
+            const supportedBookIds = ['7', '8', '9']; // Add '7' here
+            const isVocabBook = supportedBookIds.includes(bookId);
             const vocabulary = isVocabBook && showVocabulary ? vocabularyItems[item.id] || [] : [];
             const hasVocabulary = vocabulary.length > 0;
             

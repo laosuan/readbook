@@ -1,6 +1,7 @@
 // Define CDN base URLs for vocabulary files by book ID
 const CDN_BASE_URLS: Record<string, string> = {
-  // Principles (ID 7) - No vocabulary support
+  // Principles (ID 7)
+  '7': 'https://cdn.readwordly.com/Principles/20250415/',
   // Madame Bovary (ID 8)
   '8': 'https://cdn.readwordly.com/MadameBovary/20250310/',
   // The Little Prince (ID 9 from books.ts)
@@ -90,14 +91,16 @@ export async function getVocabularyForParagraph(paragraphId: string): Promise<Ke
       const bookId = idParts[0];
       
       // Different handling based on book ID
-      let part: string;
-      let chapter: string;
-      let numericId: number;
+      let part: string = '0'; // Default part to 0
+      let chapter: string = '0'; // Default chapter to 0 for non-chaptered books
+      let partIndex: string | undefined = undefined; // For Principles part index
+      let numericId: number; 
       
-      // For Principles (book 7), use a different format: bookId-section-paragraphId
+      // For Principles (book 7), use format: bookId-partIndex-paragraphId
       if (bookId === '7') {
-        // Principles doesn't use vocabulary, so return empty array
-        return [];
+        partIndex = idParts[1]; // The second part is the part index (0, 1, 2, 3)
+        numericId = parseInt(idParts[2], 10); // The third part is the paragraph ID suffix
+        // part and chapter remain default '0' as they are not used for Principles vocab file lookup
       }
       // For Madame Bovary (book 8), use 4-part format: bookId-part-chapter-paragraphId
       else if (bookId === '8' && idParts.length >= 4) {
@@ -117,16 +120,19 @@ export async function getVocabularyForParagraph(paragraphId: string): Promise<Ke
         return [];
       }
       
-      // Check if this book has vocabulary support
+      // Check if this book has vocabulary support defined
       if (!CDN_BASE_URLS[bookId]) {
-        console.info(`[Vocab API] No vocabulary support for book ID ${bookId}`);
+        console.info(`[Vocab API] No vocabulary support configured for book ID ${bookId}`);
         return [];
       }
       
-      // Create a cache key for this book-part-chapter combination
-      const cacheKey = `${bookId}-${part}-${chapter}`;
+      // Create a cache key for this book's specific file
+      // Principles uses partIndex, others use part-chapter
+      const cacheKey = bookId === '7' 
+          ? `${bookId}-${partIndex}` 
+          : `${bookId}-${part}-${chapter}`;
 
-      // If we've already tried and failed to fetch this vocabulary, don't try again
+      // If we've already tried and failed to fetch this vocabulary file, don't try again
       if (failedVocabularyRequests.has(cacheKey)) {
         return [];
       }
@@ -136,14 +142,24 @@ export async function getVocabularyForParagraph(paragraphId: string): Promise<Ke
         try {
           // Determine the correct URL pattern based on the book ID
           let url = '';
-          if (bookId === '9') {
+          if (bookId === '7' && partIndex !== undefined) {
+            // Principles uses: vocabulary_partIndex.json (e.g., vocabulary_0.json)
+            url = `${CDN_BASE_URLS[bookId]}vocabulary_${partIndex}.json`;
+          } else if (bookId === '9') {
             // The Little Prince uses a simpler format: vocabulary_chapter.json
             url = `${CDN_BASE_URLS[bookId]}vocabulary_${chapter}.json`;
-          } else {
+          } else if (bookId === '8') {
             // Madame Bovary uses the original format: vocabulary_part-chapter.json
             url = `${CDN_BASE_URLS[bookId]}vocabulary_${part}-${chapter}.json`;
+          } else {
+             console.error(`[Vocab API] Cannot determine vocabulary URL for book ${bookId} with format ${paragraphId}`);
+             failedVocabularyRequests.add(cacheKey); // Mark as failed
+             vocabularyCache[cacheKey] = []; // Cache empty result
+             return []; // Exit early
           }
           
+          console.log(`[Vocab API] Fetching vocabulary from: ${url}`);
+
           // Implement retry logic with a maximum of 1 retry
           let retries = 0;
           const maxRetries = 1;

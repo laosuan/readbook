@@ -42,5 +42,5 @@ next-env.d.ts
 
 .idea
 
-app/data/characters
+app/data/characters*
 scripts/package*

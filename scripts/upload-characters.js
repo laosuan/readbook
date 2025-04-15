@@ -15,10 +15,10 @@ const path = require('path');
 const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
 
 // Configuration
-const SOURCE_DIR = path.join(__dirname, '../app/data/characters');
+const SOURCE_DIR = path.join(__dirname, '../app/data/principles_chapters');
 const BUCKET_NAME = 'readwordly';
-// Changed from MadameBovary to TheLittlePrince
-const DESTINATION_PREFIX = 'TheLittlePrince/20250403/';
+// Changed from MadameBovary/TheLittlePrince to Principles
+const DESTINATION_PREFIX = 'Principles/20250415/'; // Update date if needed
 const CONTENT_TYPE = 'application/json';
 
 // Initialize S3 client with R2 configuration
