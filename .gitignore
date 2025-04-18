@@ -44,3 +44,6 @@ next-env.d.ts
 
 app/data/characters*
 scripts/package*
+
+*.mp3
+bilingual_*.json

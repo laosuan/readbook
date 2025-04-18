@@ -14,5 +14,5 @@ if [ ! -d "node_modules" ]; then
   npm install
 fi
 
-# Run the upload script
-node upload-characters.js
+# node upload-characters.js
+node upload-audio.js
