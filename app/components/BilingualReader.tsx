@@ -24,6 +24,10 @@ export default function BilingualReader({ content, chapterTitle, bookId, chapter
   const paragraphRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const [vocabularyItems, setVocabularyItems] = useState<{[key: string]: KeyWord[]}>({});
   
+  // Add playback speed state
+  const [playbackSpeed, setPlaybackSpeed] = useState<number>(1.0);
+  const [showSpeedSelector, setShowSpeedSelector] = useState<boolean>(false);
+
   // TTS state variables
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [currentParagraphId, setCurrentParagraphId] = useState<string | null>(null);
@@ -374,6 +378,20 @@ export default function BilingualReader({ content, chapterTitle, bookId, chapter
     };
   }, [stopTTS, isIOSSafari]);
 
+  // Add function to set playback speed
+  const changePlaybackSpeed = useCallback((speed: number) => {
+    setPlaybackSpeed(speed);
+    if (audioRef.current) {
+      audioRef.current.playbackRate = speed;
+    }
+    setShowSpeedSelector(false);
+  }, []);
+
+  // Add function to toggle speed selector visibility
+  const toggleSpeedSelector = useCallback(() => {
+    setShowSpeedSelector(prev => !prev);
+  }, []);
+
   // Play the next chunk of text from the paragraph
   const playTextChunk = useCallback(async (text: string, paragraphIndex: number): Promise<void> => {
     console.log('playTextChunk called with:', { textLength: text.length, paragraphIndex });
@@ -441,6 +459,9 @@ export default function BilingualReader({ content, chapterTitle, bookId, chapter
             
             // Set new source to CDN URL instead of base64 data
             audioRef.current.src = audioUrl;
+            
+            // Apply the current playback speed
+            audioRef.current.playbackRate = playbackSpeed;
             
             console.log('Starting audio playback from CDN');
             
@@ -589,7 +610,7 @@ export default function BilingualReader({ content, chapterTitle, bookId, chapter
     } finally {
       setIsLoading(false);
     }
-  }, [content, stopTTS, isPlaying, isIOSSafari, bookId]);
+  }, [content, stopTTS, isPlaying, isIOSSafari, bookId, playbackSpeed]);
 
   // Store the function in the ref so it can be accessed by other functions
   useEffect(() => {
@@ -1086,6 +1107,296 @@ export default function BilingualReader({ content, chapterTitle, bookId, chapter
     setShowMobileVocabulary(prev => !prev);
   }, []);
   
+  // Add refs for speed selector dropdowns
+  const topSpeedSelectorRef = useRef<HTMLDivElement>(null);
+  const mobileSpeedSelectorRef = useRef<HTMLDivElement>(null);
+  const floatingSpeedSelectorRef = useRef<HTMLDivElement>(null);
+  
+  // Add refs for speed selector buttons to exclude them from the click-outside handler
+  const topSpeedButtonRef = useRef<HTMLButtonElement>(null);
+  const mobileSpeedButtonRef = useRef<HTMLButtonElement>(null);
+  const floatingSpeedButtonRef = useRef<HTMLButtonElement>(null);
+
+  // Add click outside effect to close speed selector
+  useEffect(() => {
+    if (!showSpeedSelector) return;
+    
+    const handleClickOutside = (event: MouseEvent) => {
+      // Check if the click was on any of the speed buttons (which should toggle, not close)
+      const isSpeedButton = 
+        topSpeedButtonRef.current?.contains(event.target as Node) ||
+        mobileSpeedButtonRef.current?.contains(event.target as Node) ||
+        floatingSpeedButtonRef.current?.contains(event.target as Node);
+      
+      // If it's a speed button click, let the toggle handler manage it
+      if (isSpeedButton) return;
+      
+      // Check if the click was outside all dropdowns
+      const isOutsideTopSelector = !topSpeedSelectorRef.current?.contains(event.target as Node);
+      const isOutsideMobileSelector = !mobileSpeedSelectorRef.current?.contains(event.target as Node);
+      const isOutsideFloatingSelector = !floatingSpeedSelectorRef.current?.contains(event.target as Node);
+      
+      // If click is outside all selectors, close the dropdown
+      if (isOutsideTopSelector && isOutsideMobileSelector && isOutsideFloatingSelector) {
+        setShowSpeedSelector(false);
+      }
+    };
+    
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showSpeedSelector]);
+
+  // Add CSS for the speed selector dropdown
+  useEffect(() => {
+    // Add the CSS animation for the current paragraph indicator
+    if (typeof document !== 'undefined') {
+      const style = document.createElement('style');
+      style.textContent = `
+        @keyframes pulse {
+          0% { opacity: 0.6; }
+          50% { opacity: 1; }
+          100% { opacity: 0.6; }
+        }
+        .pulse-animation {
+          animation: pulse 2s infinite ease-in-out;
+        }
+        
+        /* Speed selector styles */
+        .speed-selector-dropdown {
+          position: relative;
+          z-index: 100;
+          background: white;
+          border-radius: 0.5rem;
+          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        
+        .dark .speed-selector-dropdown {
+          background: #1e293b;
+        }
+        
+        .speed-selector-dropdown::after {
+          content: '';
+          position: absolute;
+          bottom: -8px;
+          left: 50%;
+          transform: translateX(-50%);
+          width: 0;
+          height: 0;
+          border-left: 8px solid transparent;
+          border-right: 8px solid transparent;
+          border-top: 8px solid white;
+        }
+        
+        .dark .speed-selector-dropdown::after {
+          border-top-color: #1e293b;
+        }
+        
+        .floating-speed-dropdown {
+          position: absolute;
+          bottom: calc(100% + 16px);
+          left: 50%;
+          transform: translateX(-50%);
+          background: white;
+          border-radius: 0.75rem;
+          padding: 0.75rem;
+          box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+          min-width: 180px;
+          z-index: 100;
+        }
+        
+        .dark .floating-speed-dropdown {
+          background: #1e293b;
+        }
+        
+        /* Add style to ensure clickable area at the bottom */
+        .floating-speed-dropdown::before {
+          content: '';
+          position: absolute;
+          bottom: -16px;
+          left: 0;
+          right: 0;
+          height: 16px;
+          background: transparent;
+        }
+        
+        .floating-speed-dropdown .grid-cols-2 {
+          grid-template-columns: repeat(2, 1fr);
+          gap: 8px;
+        }
+        
+        .floating-speed-dropdown button {
+          padding: 8px 12px;
+          border-radius: 6px;
+          font-weight: 500;
+          transition: all 0.2s ease;
+          background-color: #f8fafc;
+        }
+        
+        .dark .floating-speed-dropdown button {
+          background-color: #334155;
+        }
+        
+        .floating-speed-dropdown button:hover {
+          transform: translateY(-1px);
+        }
+        
+        .floating-speed-dropdown button.active {
+          background-color: #dbeafe;
+          color: #1d4ed8;
+        }
+        
+        .dark .floating-speed-dropdown button.active {
+          background-color: #1e3a8a;
+          color: #93c5fd;
+        }
+        
+        .top-speed-dropdown {
+          position: absolute;
+          top: calc(100% + 5px);
+          right: 0;
+          background: white;
+          border-radius: 0.5rem;
+          padding: 0.5rem;
+          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+          min-width: 140px;
+          z-index: 100;
+        }
+        
+        .dark .top-speed-dropdown {
+          background: #1e293b;
+        }
+        
+        .top-speed-dropdown::after {
+          content: '';
+          position: absolute;
+          top: -8px;
+          right: 16px;
+          width: 0;
+          height: 0;
+          border-left: 8px solid transparent;
+          border-right: 8px solid transparent;
+          border-bottom: 8px solid white;
+        }
+        
+        .dark .top-speed-dropdown::after {
+          border-bottom-color: #1e293b;
+        }
+        
+        .mobile-speed-dropdown {
+          position: absolute;
+          bottom: calc(100% + 5px);
+          right: 0;
+          background: white;
+          border-radius: 0.5rem;
+          padding: 0.5rem;
+          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+          min-width: 140px;
+          z-index: 100;
+        }
+        
+        .dark .mobile-speed-dropdown {
+          background: #1e293b;
+        }
+        
+        .mobile-speed-dropdown::after {
+          content: '';
+          position: absolute;
+          bottom: -8px;
+          right: 16px;
+          width: 0;
+          height: 0;
+          border-left: 8px solid transparent;
+          border-right: 8px solid transparent;
+          border-top: 8px solid white;
+        }
+        
+        .dark .mobile-speed-dropdown::after {
+          border-top-color: #1e293b;
+        }
+        
+        /* Mobile optimization styles */
+        @media (max-width: 768px) {
+          .mobile-compact-header {
+            padding: 0.5rem 0;
+          }
+          .mobile-nav {
+            font-size: 0.875rem;
+            display: flex;
+            align-items: center;
+            padding: 0.5rem 0;
+            overflow-x: auto;
+            white-space: nowrap;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+          }
+          .mobile-nav::-webkit-scrollbar {
+            display: none;
+          }
+          .mobile-controls {
+            flex-wrap: wrap;
+            gap: 0.5rem;
+          }
+          .mobile-controls > button {
+            padding: 0.375rem 0.625rem;
+            font-size: 0.75rem;
+          }
+          .mobile-vocabulary-toggle {
+            position: fixed;
+            bottom: 1rem;
+            right: 1rem;
+            z-index: 50;
+            border-radius: 9999px;
+            padding: 0.75rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+          }
+          .mobile-vocabulary-panel {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            max-height: 40vh;
+            z-index: 40;
+            border-top-left-radius: 1rem;
+            border-top-right-radius: 1rem;
+            box-shadow: 0 -4px 6px rgba(0, 0, 0, 0.1);
+            overflow-y: auto;
+            opacity: 1;
+            backdrop-filter: blur(8px);
+          }
+          /* Add a visual cue for tappable paragraphs on mobile */
+          .prose .relative {
+            position: relative;
+          }
+          .prose .relative::after {
+            content: '';
+            position: absolute;
+            right: -8px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background-color: var(--color-primary-500);
+            opacity: 0.6;
+          }
+          /* Highlight the active paragraph more prominently on mobile */
+          .prose .relative:has(.pulse-animation) {
+            background-color: rgba(var(--color-primary-500-rgb), 0.05);
+            border-radius: 0.25rem;
+            padding-left: 0.5rem;
+          }
+        }
+      `;
+      document.head.appendChild(style);
+      
+      return () => {
+        document.head.removeChild(style);
+      };
+    }
+  }, []);
+  
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
       {/* Mobile-optimized header navigation */}
@@ -1151,6 +1462,41 @@ export default function BilingualReader({ content, chapterTitle, bookId, chapter
                   </svg>
                 )}
               </button>
+              
+              {/* Playback Speed Dropdown */}
+              <div className="relative">
+                <button
+                  ref={topSpeedButtonRef}
+                  onClick={toggleSpeedSelector}
+                  className="px-2 py-1 rounded-md text-secondary-800 dark:text-secondary-200 bg-secondary-200 hover:bg-secondary-300 dark:bg-secondary-700 dark:hover:bg-secondary-600 text-sm"
+                  disabled={isLoading}
+                >
+                  {playbackSpeed}x
+                </button>
+                
+                {showSpeedSelector && (
+                  <div 
+                    ref={topSpeedSelectorRef}
+                    className="top-speed-dropdown"
+                  >
+                    <div className="grid grid-cols-3 gap-1">
+                      {[0.5, 1, 1.5, 2, 2.5, 3].map(speed => (
+                        <button
+                          key={speed}
+                          onClick={() => changePlaybackSpeed(speed)}
+                          className={`px-2 py-1 rounded text-xs ${
+                            playbackSpeed === speed 
+                              ? 'bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-300 font-medium' 
+                              : 'hover:bg-secondary-100 dark:hover:bg-secondary-700 text-secondary-700 dark:text-secondary-300'
+                          }`}
+                        >
+                          {speed}x
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
               
               {/* Stop TTS button */}
               <button
@@ -1251,6 +1597,41 @@ export default function BilingualReader({ content, chapterTitle, bookId, chapter
               >
                 停止
               </button>
+              
+              {/* Mobile Playback Speed Button */}
+              <div className="relative">
+                <button
+                  ref={mobileSpeedButtonRef}
+                  onClick={toggleSpeedSelector}
+                  className="px-2 py-1 rounded-md bg-secondary-100 text-secondary-600 dark:bg-secondary-800 dark:text-secondary-300 hover:bg-secondary-200 dark:hover:bg-secondary-700 disabled:opacity-50 text-xs"
+                  disabled={isLoading}
+                >
+                  {playbackSpeed}x
+                </button>
+                
+                {showSpeedSelector && (
+                  <div 
+                    ref={mobileSpeedSelectorRef}
+                    className="mobile-speed-dropdown"
+                  >
+                    <div className="grid grid-cols-3 gap-1">
+                      {[0.5, 1, 1.5, 2, 2.5, 3].map(speed => (
+                        <button
+                          key={speed}
+                          onClick={() => changePlaybackSpeed(speed)}
+                          className={`px-2 py-1 rounded text-xs ${
+                            playbackSpeed === speed 
+                              ? 'bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-300 font-medium' 
+                              : 'hover:bg-secondary-100 dark:hover:bg-secondary-700 text-secondary-700 dark:text-secondary-300'
+                          }`}
+                        >
+                          {speed}x
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -1437,6 +1818,41 @@ export default function BilingualReader({ content, chapterTitle, bookId, chapter
               </svg>
             )}
           </button>
+          
+          {/* Playback Speed Selector Button */}
+          <div className="relative">
+            <button
+              ref={floatingSpeedButtonRef}
+              onClick={toggleSpeedSelector}
+              className="p-2 rounded-full flex items-center justify-center"
+              style={{ backgroundColor: '#e2e8f0' }}
+              aria-label="Playback Speed"
+              title="播放速度"
+              disabled={isLoading}
+            >
+              <span className="text-sm font-medium text-secondary-800">{playbackSpeed}x</span>
+            </button>
+            
+            {/* Speed Selector Dropdown */}
+            {showSpeedSelector && (
+              <div 
+                ref={floatingSpeedSelectorRef}
+                className="floating-speed-dropdown"
+              >
+                <div className="grid grid-cols-2 gap-2">
+                  {[0.5, 1, 1.5, 2, 2.5, 3].map(speed => (
+                    <button
+                      key={speed}
+                      onClick={() => changePlaybackSpeed(speed)}
+                      className={playbackSpeed === speed ? 'active' : ''}
+                    >
+                      {speed}x
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
           
           {/* Stop TTS button */}
           <button
