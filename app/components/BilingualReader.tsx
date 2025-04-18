@@ -27,6 +27,11 @@ export default function BilingualReader({ content, chapterTitle, bookId, chapter
   // Add playback speed state
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(1.0);
   const [showSpeedSelector, setShowSpeedSelector] = useState<boolean>(false);
+  
+  // Add playback mode state (sequential or loop)
+  const [loopMode, setLoopMode] = useState<boolean>(false);
+  // Add a ref to track the latest loopMode value for callbacks
+  const loopModeRef = useRef<boolean>(false);
 
   // TTS state variables
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
@@ -392,6 +397,11 @@ export default function BilingualReader({ content, chapterTitle, bookId, chapter
     setShowSpeedSelector(prev => !prev);
   }, []);
 
+  // Add function to toggle playback mode between sequential and loop
+  const togglePlaybackMode = useCallback(() => {
+    setLoopMode(prev => !prev);
+  }, []);
+
   // Play the next chunk of text from the paragraph
   const playTextChunk = useCallback(async (text: string, paragraphIndex: number): Promise<void> => {
     console.log('playTextChunk called with:', { textLength: text.length, paragraphIndex });
@@ -500,7 +510,21 @@ export default function BilingualReader({ content, chapterTitle, bookId, chapter
               console.log('Audio ended event triggered', { isPlaying, paragraphIndex });
               
               if (paragraphIndex !== null) {
-                // If this is the last chunk of the paragraph, move to next paragraph
+                // If in loop mode, replay the same paragraph
+                if (loopModeRef.current) {
+                  console.log('Loop mode: replaying current paragraph', { paragraphId });
+                  // Small delay before replaying to avoid issues
+                  setTimeout(() => {
+                    if (playTTSRef.current) {
+                      playTTSRef.current(paragraphId);
+                    } else {
+                      console.error('playTTS reference is not available');
+                    }
+                  }, 300);
+                  return;
+                }
+                
+                // If sequential mode (default), move to next paragraph
                 const nextIndex = paragraphIndex + 1;
                 console.log('Attempting to play next paragraph', { nextIndex, contentLength: content.length });
                 if (nextIndex < content.length) {
@@ -1397,6 +1421,11 @@ export default function BilingualReader({ content, chapterTitle, bookId, chapter
     }
   }, []);
   
+  // Update loopModeRef whenever loopMode changes
+  useEffect(() => {
+    loopModeRef.current = loopMode;
+  }, [loopMode]);
+  
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
       {/* Mobile-optimized header navigation */}
@@ -1459,6 +1488,26 @@ export default function BilingualReader({ content, chapterTitle, bookId, chapter
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="#3B82F6" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
                     <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                )}
+              </button>
+              
+              {/* Loop Mode Toggle Button */}
+              <button
+                onClick={togglePlaybackMode}
+                className="p-2 rounded-md text-secondary-800 dark:text-secondary-200 hover:bg-secondary-300 dark:hover:bg-secondary-600 disabled:opacity-50"
+                style={{ backgroundColor: '#e2e8f0' }}
+                aria-label={loopMode ? "Sequential Mode" : "Loop Mode"}
+                title={loopMode ? "顺序播放" : "循环播放当前段落"}
+                disabled={isLoading}
+              >
+                {loopMode ? (
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="#3B82F6" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                ) : (
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="#64748b" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
                   </svg>
                 )}
               </button>
@@ -1596,6 +1645,19 @@ export default function BilingualReader({ content, chapterTitle, bookId, chapter
                 disabled={isLoading}
               >
                 停止
+              </button>
+              
+              {/* Mobile Loop Mode Toggle Button */}
+              <button
+                onClick={togglePlaybackMode}
+                className={`px-2 py-1 rounded-md text-xs ${
+                  loopMode 
+                    ? 'bg-primary-100 text-primary-600 dark:bg-primary-900 dark:text-primary-300 hover:bg-primary-200 dark:hover:bg-primary-800' 
+                    : 'bg-secondary-100 text-secondary-600 dark:bg-secondary-800 dark:text-secondary-300 hover:bg-secondary-200 dark:hover:bg-secondary-700'
+                }`}
+                disabled={isLoading}
+              >
+                {loopMode ? "循环" : "顺序"}
               </button>
               
               {/* Mobile Playback Speed Button */}
@@ -1815,6 +1877,26 @@ export default function BilingualReader({ content, chapterTitle, bookId, chapter
               <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="#3B82F6" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
                 <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            )}
+          </button>
+          
+          {/* Loop Mode Toggle Button */}
+          <button
+            onClick={togglePlaybackMode}
+            className="p-2 rounded-full flex items-center justify-center"
+            style={{ backgroundColor: '#e2e8f0' }}
+            aria-label={loopMode ? "Sequential Mode" : "Loop Mode"}
+            title={loopMode ? "顺序播放" : "循环播放当前段落"}
+            disabled={isLoading}
+          >
+            {loopMode ? (
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="#3B82F6" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+            ) : (
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="#64748b" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
               </svg>
             )}
           </button>
