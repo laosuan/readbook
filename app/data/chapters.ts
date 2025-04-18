@@ -7,6 +7,7 @@ interface BookConfig {
   name: string;
   useSplitFiles?: boolean;
   cdnBaseUrl?: string;
+  audioCdnUrl?: string; // Base URL for pre-generated audio files
 }
 
 // 书籍配置
@@ -17,21 +18,24 @@ const BOOK_CONFIGS: BookConfig[] = [
     cdnUrl: 'https://cdn.readwordly.com/Principles/20250415/bilingual_0.json', // Point to first part as fallback/example
     name: 'Principles (2011 Free Version)',
     useSplitFiles: true, // Set to true
-    cdnBaseUrl: 'https://cdn.readwordly.com/Principles/20250415/' // Add the base URL
+    cdnBaseUrl: 'https://cdn.readwordly.com/Principles/20250415/', // Add the base URL
+    audioCdnUrl: 'https://cdn.readwordly.com/Principles/Audio/20250418/' // Base URL for audio files
   },
   {
     id: '8',
     cdnUrl: 'https://cdn.readwordly.com/MadameBovary/20250310/bilingual_1-1.json', // Updated fallback example
     name: 'Madame Bovary', // Corrected name
     useSplitFiles: true,
-    cdnBaseUrl: 'https://cdn.readwordly.com/MadameBovary/20250310/'
+    cdnBaseUrl: 'https://cdn.readwordly.com/MadameBovary/20250310/',
+    audioCdnUrl: 'https://cdn.readwordly.com/MadameBovary/Audio/20250418/' // Base URL for audio files
   },
   {
     id: '9',
     cdnUrl: 'https://cdn.readwordly.com/TheLittlePrince/20250403/bilingual_1.json', // Updated fallback example
     name: 'The Little Prince',
     useSplitFiles: true,
-    cdnBaseUrl: 'https://cdn.readwordly.com/TheLittlePrince/20250403/'
+    cdnBaseUrl: 'https://cdn.readwordly.com/TheLittlePrince/20250403/',
+    audioCdnUrl: 'https://cdn.readwordly.com/TheLittlePrince/Audio/20250418/' // Base URL for audio files
   }
 ];
 
