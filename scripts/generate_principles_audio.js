@@ -33,7 +33,7 @@ async function main() {
           console.warn(`Skipping paragraph without id or source in ${file}`);
           continue;
         }
-        jobs.push({ id, text });
+        jobs.push({ id, text: text.replace(/\n/g, '') });
       }
     } catch (err) {
       console.error(`Failed to parse JSON file ${file}:`, err);
