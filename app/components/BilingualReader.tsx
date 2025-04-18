@@ -311,7 +311,7 @@ export default function BilingualReader({ content, chapterTitle, bookId, chapter
           console.log('Created new Audio element successfully:', !!audioRef.current);
           
           // Add global debugging handlers
-          audioRef.current.onerror = (e) => {
+          audioRef.current.onerror = () => {
             const errorCodes: Record<string, string> = {
               '1': 'MEDIA_ERR_ABORTED - 获取过程被用户取消',
               '2': 'MEDIA_ERR_NETWORK - 网络错误导致音频下载失败',
@@ -329,6 +329,9 @@ export default function BilingualReader({ content, chapterTitle, bookId, chapter
             const errorMessage = mediaError && errorCode in errorCodes 
               ? errorCodes[errorCode] 
               : '未知错误';
+            
+            // Log the error message for debugging
+            console.error('Audio element error:', errorMessage);
             
             audioRef.current.removeAttribute('src');
             audioRef.current.load();
@@ -359,7 +362,7 @@ export default function BilingualReader({ content, chapterTitle, bookId, chapter
           silentAudio.play().then(() => {
             audioInitializedRef.current = true;
             console.log('Silent audio initialized successfully for iOS');
-          }).catch(e => console.log("Silent audio initialization failed:", e));
+          }).catch(error => console.log("Silent audio initialization failed:", error));
         };
 
         document.addEventListener('touchstart', initAudioOnUserInteraction, { once: true });
@@ -617,12 +620,160 @@ export default function BilingualReader({ content, chapterTitle, bookId, chapter
             throw new Error('No audio data received from TTS API');
           }
           
-          // Create audio source from base64 data
-          const audioSrc = `data:audio/mp3;base64,${data.audio}`;
           console.log('Audio source created, length:', data.audio.length);
           
-          // Set up audio playback (similar to existing code)
-          // ... (remaining TTS setup code would be the same)
+          // Set up audio playback with the TTS API response data
+          if (audioRef.current) {
+            // Reset audio element before setting new source
+            audioRef.current.pause();
+            audioRef.current.currentTime = 0;
+            
+            // Remove previous event listeners to avoid duplicates
+            audioRef.current.onended = null;
+            
+            // Special handling for iOS Safari
+            if (isIOSSafari()) {
+              // For iOS Safari, use the globally stored audio element that's initialized on first user interaction
+              const globalAudio = (window as unknown as { globalAudioElement?: HTMLAudioElement }).globalAudioElement;
+              if (globalAudio) {
+                audioRef.current = globalAudio;
+              }
+              
+              // Ensure attributes for iOS playback
+              if (audioRef.current) {
+                audioRef.current.setAttribute('playsinline', '');
+                audioRef.current.setAttribute('webkit-playsinline', '');
+              }
+            } else {
+              // For other browsers, create a new Audio element to avoid state issues
+              const oldElement = audioRef.current;
+              audioRef.current = new Audio();
+              
+              // Transfer needed event handlers
+              if (oldElement.onerror) audioRef.current.onerror = oldElement.onerror;
+              if (oldElement.oncanplay) audioRef.current.oncanplay = oldElement.oncanplay;
+              if (oldElement.oncanplaythrough) audioRef.current.oncanplaythrough = oldElement.oncanplaythrough;
+            }
+            
+            // Create audio source from base64 data
+            const audioSrc = `data:audio/mp3;base64,${data.audio}`;
+            audioRef.current.src = audioSrc;
+            
+            // Apply the current playback speed
+            audioRef.current.playbackRate = playbackSpeed;
+            
+            console.log('Starting audio playback from TTS API response');
+            
+            // Add a retry mechanism for play
+            let retryCount = 0;
+            const maxRetries = isIOSSafari() ? 3 : 2;  // Increased retries for iOS Safari
+            
+            const attemptPlay = async (): Promise<void> => {
+              try {
+                if (audioRef.current) {
+                  await audioRef.current.play();
+                  console.log('Audio playback started successfully');
+                } else {
+                  throw new Error('Audio element is null');
+                }
+              } catch (playError: unknown) {
+                retryCount++;
+                const errorMessage = playError instanceof Error ? playError.message : 'Unknown error';
+                console.warn(`Play attempt ${retryCount} failed: ${errorMessage}`);
+                
+                if (retryCount <= maxRetries) {
+                  console.log(`Retrying playback (attempt ${retryCount}/${maxRetries})...`);
+                  // Wait a moment before retrying
+                  await new Promise(resolve => setTimeout(resolve, isIOSSafari() ? 500 : 300));  // Longer delay for iOS
+                  return attemptPlay();
+                } else {
+                  throw new Error(`Audio playback failed after ${maxRetries} attempts: ${errorMessage}`);
+                }
+              }
+            };
+            
+            await attemptPlay();
+            
+            // Set up the ended event for this chunk
+            const handleEnded = () => {
+              console.log('Audio ended event triggered', { isPlaying, paragraphIndex });
+              
+              if (paragraphIndex !== null) {
+                // If in loop mode, replay the same paragraph
+                if (loopModeRef.current) {
+                  console.log('Loop mode: replaying current paragraph', { paragraphId });
+                  // Small delay before replaying to avoid issues
+                  setTimeout(() => {
+                    if (playTTSRef.current) {
+                      playTTSRef.current(paragraphId);
+                    } else {
+                      console.error('playTTS reference is not available');
+                    }
+                  }, 300);
+                  return;
+                }
+                
+                // If sequential mode (default), move to next paragraph
+                const nextIndex = paragraphIndex + 1;
+                console.log('Attempting to play next paragraph', { nextIndex, contentLength: content.length });
+                if (nextIndex < content.length) {
+                  const nextParagraph = content[nextIndex];
+                  console.log('Playing next paragraph with ID:', nextParagraph.id);
+                  setCurrentParagraphId(nextParagraph.id);
+                  setCurrentParagraphIndex(nextIndex);
+                  
+                  // For iOS Safari, use a timeout to help with playback chain
+                  if (isIOSSafari()) {
+                    // Longer delay for iOS Safari to prevent autoplay restrictions
+                    setTimeout(() => {
+                      if (playTTSRef.current) {
+                        playTTSRef.current(nextParagraph.id);
+                      } else {
+                        console.error('playTTS reference is not available');
+                      }
+                    }, 100);
+                  } else {
+                    if (playTTSRef.current) {
+                      playTTSRef.current(nextParagraph.id);
+                    } else {
+                      console.error('playTTS reference is not available');
+                    }
+                  }
+                } else {
+                  // End of content
+                  console.log('End of content reached, stopping TTS');
+                  stopTTS();
+                }
+              }
+            };
+            
+            // Remove any existing onended handler first
+            if (audioRef.current) {
+              audioRef.current.onended = null;
+              // Then add the new handler
+              audioRef.current.onended = handleEnded;
+              console.log('Setting up onended handler, about to play audio...');
+              
+              // Add additional event to debug if ended event is not firing
+              audioRef.current.addEventListener('ended', () => {
+                console.log('Audio ended event fired via addEventListener - this is a secondary check');
+              });
+              
+              // Check if the audio element has the expected duration
+              audioRef.current.onloadedmetadata = () => {
+                const audioDuration = audioRef.current?.duration || 0;
+                console.log('Audio metadata loaded, duration:', audioDuration);
+                if (audioDuration === 0) {
+                  console.warn('Warning: Audio duration is zero, this may cause playback issues');
+                }
+              };
+            } else {
+              console.error('Audio element is null, cannot set event handlers');
+            }
+          } else {
+            console.error('Audio element reference is not available for TTS playback');
+            throw new Error('Audio player not available');
+          }
         }
       } else {
         console.error('Audio element reference is not available');
