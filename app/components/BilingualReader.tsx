@@ -1576,6 +1576,24 @@ export default function BilingualReader({ content, chapterTitle, bookId, chapter
   useEffect(() => {
     loopModeRef.current = loopMode;
   }, [loopMode]);
+
+  // Scroll to the paragraph corresponding to currentParagraphId when it changes
+  useEffect(() => {
+    if (!currentParagraphId) return;
+
+    const el = paragraphRefs.current.get(currentParagraphId);
+    if (!el) return;
+
+    const rect = el.getBoundingClientRect();
+    const fullyVisible = rect.top >= 0 &&
+                         rect.bottom <= (window.innerHeight || document.documentElement.clientHeight);
+    if (fullyVisible) return;
+
+    el.scrollIntoView({
+      behavior: 'smooth',
+      block: 'center'
+    });
+  }, [currentParagraphId]);
   
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
