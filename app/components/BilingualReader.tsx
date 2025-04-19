@@ -43,6 +43,8 @@ export default function BilingualReader({ content, chapterTitle, bookId, chapter
   
   // Add state for floating controls
   const [showFloatingControls, setShowFloatingControls] = useState<boolean>(true);
+  // Only enable audio playback for book ID '7'
+  const isAudioEnabled = bookId === '7';
 
   // Use a ref to track the last scroll position
   const lastScrollPositionRef = useRef<number>(0);
@@ -330,9 +332,7 @@ export default function BilingualReader({ content, chapterTitle, bookId, chapter
               ? errorCodes[errorCode] 
               : '未知错误';
             
-            // Log the error message for debugging
-            console.error('Audio element error:', errorMessage);
-            
+
             audioRef.current.removeAttribute('src');
             audioRef.current.load();
           };
@@ -884,6 +884,7 @@ export default function BilingualReader({ content, chapterTitle, bookId, chapter
 
   // Add tap-to-play functionality for paragraphs
   const handleParagraphTap = useCallback((paragraphId: string, event?: React.MouseEvent<HTMLElement>) => {
+    if (!isAudioEnabled) return;
     // The hover button is explicitly clicked, so we should NOT prevent playback
     // This check was preventing the hover button from working on desktop
     // Only prevent automatic paragraph taps (not button clicks) on desktop
@@ -911,7 +912,7 @@ export default function BilingualReader({ content, chapterTitle, bookId, chapter
     } else {
       console.error('playTTS reference is not available');
     }
-  }, [currentParagraphId, hoverParagraphId, isPlaying, pauseTTS, resumeTTS, playTTSRef]);
+  }, [currentParagraphId, hoverParagraphId, isPlaying, pauseTTS, resumeTTS, playTTSRef, isAudioEnabled]);
 
   // Set up intersection observer to track visible paragraphs
   useEffect(() => {
@@ -1633,7 +1634,7 @@ export default function BilingualReader({ content, chapterTitle, bookId, chapter
           </div>
           
           {/* Play/Pause/Stop TTS button group */}
-          {currentParagraphId && (
+          {isAudioEnabled && currentParagraphId && (
             <div className="flex items-center space-x-2">
               {/* Loading indicator */}
               {isLoading && (
@@ -1796,7 +1797,7 @@ export default function BilingualReader({ content, chapterTitle, bookId, chapter
           )}
           
           {/* TTS controls */}
-          {currentParagraphId && (
+          {isAudioEnabled && currentParagraphId && (
             <div className="flex items-center space-x-1">
               {isLoading && (
                 <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-primary-600 dark:border-primary-300"></div>
@@ -1907,7 +1908,7 @@ export default function BilingualReader({ content, chapterTitle, bookId, chapter
                     </p>
                     
                     {/* Play button that appears on hover - only on desktop */}
-                    {hoverParagraphId === item.id && !isPlaying && currentParagraphId !== item.id && (
+                    {isAudioEnabled && hoverParagraphId === item.id && !isPlaying && currentParagraphId !== item.id && (
                       <button 
                         onClick={(e) => {
                           handleParagraphTap(item.id, e);
@@ -1923,7 +1924,7 @@ export default function BilingualReader({ content, chapterTitle, bookId, chapter
                     )}
                     
                     {/* Add play/pause button for currently playing paragraph */}
-                    {currentParagraphId === item.id && isPlaying && (
+                    {isAudioEnabled && currentParagraphId === item.id && isPlaying && (
                       <button 
                         onClick={(e) => {
                           e.stopPropagation();
@@ -1940,7 +1941,7 @@ export default function BilingualReader({ content, chapterTitle, bookId, chapter
                     )}
                     
                     {/* Current playing indicator */}
-                    {currentParagraphId === item.id && (
+                    {isAudioEnabled && currentParagraphId === item.id && (
                       <div className="absolute left-0 top-0 h-full w-1 bg-primary-500 rounded-full pulse-animation"></div>
                     )}
                   </div>
@@ -2019,7 +2020,7 @@ export default function BilingualReader({ content, chapterTitle, bookId, chapter
       </div>
       
       {/* Floating play controls for both mobile and desktop */}
-      {currentParagraphId && showFloatingControls && (
+      {isAudioEnabled && currentParagraphId && showFloatingControls && (
         <div 
           className="fixed bottom-16 md:bottom-8 left-1/2 transform -translate-x-1/2 rounded-full shadow-md p-2 flex items-center space-x-2 z-50 transition-opacity duration-300 opacity-90" 
           style={{ backgroundColor: 'rgba(248, 250, 252, 0.95)', backdropFilter: 'blur(4px)' }}
