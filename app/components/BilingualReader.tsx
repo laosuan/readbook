@@ -331,7 +331,7 @@ export default function BilingualReader({ content, chapterTitle, bookId, chapter
             const errorMessage = mediaError && errorCode in errorCodes 
               ? errorCodes[errorCode] 
               : '未知错误';
-            
+            console.error(`Audio element error: ${errorMessage}`);
 
             audioRef.current.removeAttribute('src');
             audioRef.current.load();
