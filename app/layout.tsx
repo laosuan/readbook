@@ -4,6 +4,7 @@ import "./globals.css";
 import Header from "./components/Header";
 import Footer from "./components/Footer";
 import ClientThemeProvider from "./components/ClientThemeProvider";
+import { Analytics } from '@vercel/analytics/next';
 
 // 加载字体
 const inter = Inter({ 
@@ -48,6 +49,7 @@ export default function RootLayout({
             <Footer />
           </div>
         </ClientThemeProvider>
+        <Analytics />
       </body>
     </html>
   );
